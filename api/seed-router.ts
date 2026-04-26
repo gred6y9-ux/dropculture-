@@ -16,98 +16,129 @@ export const seedRouter = createRouter({
 
       const db = getDb();
 
-      // Create all tables
+      // Drop all tables to start fresh
+      await db.execute(sql`DROP TABLE IF EXISTS user_items`);
+      await db.execute(sql`DROP TABLE IF EXISTS pack_opens`);
+      await db.execute(sql`DROP TABLE IF EXISTS daily_claims`);
+      await db.execute(sql`DROP TABLE IF EXISTS market_listings`);
+      await db.execute(sql`DROP TABLE IF EXISTS transactions`);
+      await db.execute(sql`DROP TABLE IF EXISTS item_templates`);
+      await db.execute(sql`DROP TABLE IF EXISTS collections`);
+      await db.execute(sql`DROP TABLE IF EXISTS users`);
+
+      // Create users with all required columns
       await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS users (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          telegram_id BIGINT UNIQUE NOT NULL,
+        CREATE TABLE users (
+          id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          telegram_id BIGINT UNIQUE,
+          unionId VARCHAR(255) UNIQUE,
           username VARCHAR(255),
           first_name VARCHAR(255),
-          avatar VARCHAR(500),
-          coins INT DEFAULT 100,
-          stars INT DEFAULT 0,
-          streak_days INT DEFAULT 0,
+          last_name VARCHAR(255),
+          name VARCHAR(255),
+          email VARCHAR(320),
+          avatar TEXT,
+          role ENUM('user','admin') NOT NULL DEFAULT 'user',
+          coins INT NOT NULL DEFAULT 500,
+          stars INT NOT NULL DEFAULT 0,
+          streak_days INT NOT NULL DEFAULT 0,
           last_claim_at TIMESTAMP NULL,
-          role VARCHAR(50) DEFAULT 'user',
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          last_sign_in_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          INDEX telegram_idx (telegram_id),
+          INDEX union_idx (unionId)
         )
       `);
 
       await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS collections (
-          id INT AUTO_INCREMENT PRIMARY KEY,
+        CREATE TABLE collections (
+          id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
           name VARCHAR(255) NOT NULL,
           description TEXT,
-          image_url VARCHAR(500),
-          is_active BOOLEAN DEFAULT TRUE,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          image_url TEXT,
+          is_active BOOLEAN NOT NULL DEFAULT TRUE,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
 
       await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS item_templates (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          collection_id INT NOT NULL,
+        CREATE TABLE item_templates (
+          id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          collection_id BIGINT UNSIGNED NOT NULL,
           name VARCHAR(255) NOT NULL,
-          grade VARCHAR(50) NOT NULL,
+          grade ENUM('Stock','Refined','Rare','Exotic','Legacy') NOT NULL,
+          image_url TEXT,
           description TEXT,
-          image_url VARCHAR(500),
-          base_price_min INT DEFAULT 0,
-          base_price_max INT DEFAULT 0,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          base_price_min INT NOT NULL DEFAULT 10,
+          base_price_max INT NOT NULL DEFAULT 50,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
 
       await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS user_items (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          user_id INT NOT NULL,
-          template_id INT NOT NULL,
-          float_val FLOAT DEFAULT 0,
-          pattern_seed INT DEFAULT 0,
-          serial_num INT DEFAULT 0,
-          market_price INT DEFAULT 0,
-          is_listed BOOLEAN DEFAULT FALSE,
-          obtained_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        CREATE TABLE user_items (
+          id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          user_id BIGINT UNSIGNED NOT NULL,
+          template_id BIGINT UNSIGNED NOT NULL,
+          float_val FLOAT NOT NULL DEFAULT 0.15,
+          pattern_seed INT NOT NULL DEFAULT 1,
+          serial_num INT NOT NULL DEFAULT 1,
+          market_price INT NOT NULL DEFAULT 0,
+          is_listed BOOLEAN NOT NULL DEFAULT FALSE,
+          acquired_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          INDEX user_idx (user_id),
+          INDEX template_idx (template_id),
+          INDEX listed_idx (is_listed)
         )
       `);
 
       await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS market_listings (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          item_id INT NOT NULL,
-          seller_id INT NOT NULL,
+        CREATE TABLE pack_opens (
+          id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          user_id BIGINT UNSIGNED NOT NULL,
+          pack_type ENUM('daily','premium','vip') NOT NULL DEFAULT 'daily',
+          items_count INT NOT NULL DEFAULT 5,
+          opened_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      await db.execute(sql`
+        CREATE TABLE daily_claims (
+          id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          user_id BIGINT UNSIGNED NOT NULL,
+          claimed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          streak_day INT NOT NULL DEFAULT 1,
+          INDEX user_claimed_idx (user_id, claimed_at)
+        )
+      `);
+
+      await db.execute(sql`
+        CREATE TABLE market_listings (
+          id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          item_id BIGINT UNSIGNED NOT NULL,
+          seller_id BIGINT UNSIGNED NOT NULL,
           price INT NOT NULL,
-          currency VARCHAR(20) DEFAULT 'coins',
-          listed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          sold_at TIMESTAMP NULL
+          currency ENUM('coins','stars','ton') NOT NULL DEFAULT 'coins',
+          listed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          sold_at TIMESTAMP NULL,
+          INDEX seller_idx (seller_id),
+          INDEX item_idx (item_id)
         )
       `);
 
       await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS pack_opens (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          user_id INT NOT NULL,
-          pack_type VARCHAR(50),
-          items_count INT DEFAULT 0,
-          opened_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        CREATE TABLE transactions (
+          id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          item_id BIGINT UNSIGNED NOT NULL,
+          seller_id BIGINT UNSIGNED NOT NULL,
+          buyer_id BIGINT UNSIGNED NOT NULL,
+          price INT NOT NULL,
+          currency ENUM('coins','stars','ton') NOT NULL DEFAULT 'coins',
+          fee INT NOT NULL DEFAULT 0,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
-
-      await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS daily_claims (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          user_id INT NOT NULL,
-          streak_day INT DEFAULT 1,
-          claimed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-
-      // Check if already seeded
-      const existing = await db.select().from(schema.collections);
-      if (existing.length > 0) {
-        return { message: "Tables created, already seeded", collections: existing.length };
-      }
 
       // Insert collection
       const [collection] = await db.insert(schema.collections).values({
@@ -131,6 +162,6 @@ export const seedRouter = createRouter({
         { collectionId: collection.id, name: "Prism Light", grade: "Exotic", description: "Rainbow shimmer", basePriceMin: 1000, basePriceMax: 5000 },
       ]);
 
-      return { message: "Database initialized!", collectionId: collection.id };
+      return { message: "Database fully reinitialized!", collectionId: collection.id };
     }),
 });
