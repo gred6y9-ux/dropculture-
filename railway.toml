@@ -1,0 +1,9 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "node dist/boot.js"
+healthcheckPath = "/api/trpc/ping"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
