@@ -16,6 +16,7 @@ export const PACK_CONFIGS = {
   starter:  { name: "🌑 Starter Pack",  cost: 150,  currency: "coins", items: 3, grades: { Stock: 0.70, Refined: 0.25, Rare: 0.05, Exotic: 0.00, Legacy: 0.00 } },
   standard: { name: "💎 Standard Pack", cost: 600,  currency: "coins", items: 5, grades: { Stock: 0.50, Refined: 0.30, Rare: 0.15, Exotic: 0.05, Legacy: 0.00 } },
   premium:  { name: "✨ Premium Pack",  cost: 2500, currency: "coins", items: 5, grades: { Stock: 0.00, Refined: 0.40, Rare: 0.35, Exotic: 0.20, Legacy: 0.05 } },
+  elite:    { name: "🔮 Elite Pack",    cost: 6000, currency: "coins", items: 5, grades: { Stock: 0.00, Refined: 0.00, Rare: 0.25, Exotic: 0.40, Legacy: 0.10 } },
   vip:      { name: "⭐ VIP Pack",      cost: 50,   currency: "stars", items: 5, grades: { Stock: 0.00, Refined: 0.20, Rare: 0.45, Exotic: 0.28, Legacy: 0.07 } },
   legendary:{ name: "🔥 Legendary",    cost: 200,  currency: "stars", items: 5, grades: { Stock: 0.00, Refined: 0.00, Rare: 0.35, Exotic: 0.50, Legacy: 0.15 } },
   mythic:   { name: "👑 Mythic Drop",  cost: 500,  currency: "stars", items: 1, grades: { Stock: 0.00, Refined: 0.00, Rare: 0.00, Exotic: 0.00, Legacy: 1.00 } },
@@ -99,7 +100,7 @@ export const gameRouter = createRouter({
   // ── Open pack (coins only) ────────────────────────────────────
   openPack: publicQuery
     .input(z.object({
-      packType: z.enum(["starter", "standard", "premium"]),
+      packType: z.enum(["starter", "standard", "premium", "elite"]),
     }))
     .mutation(async ({ ctx, input }) => {
       const user = await getUser(ctx.req.headers);
@@ -322,3 +323,4 @@ export const gameRouter = createRouter({
     };
   }),
 });
+// export PACK_CONFIGS already done above
