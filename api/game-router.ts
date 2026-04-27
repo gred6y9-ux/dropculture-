@@ -13,6 +13,8 @@ import * as schema from "@db/schema";
 
 // ── Pack configurations ──────────────────────────────────────────
 export const PACK_CONFIGS = {
+  flowers:  { name: "🌸 Flowers Pack", cost: 250, currency: "coins", items: 3, grades: { Stock: 0.65, Refined: 0.25, Rare: 0.08, Exotic: 0.02, Legacy: 0.00 } },
+  planets:  { name: "🪐 Planets Pack", cost: 300, currency: "coins", items: 3, grades: { Stock: 0.60, Refined: 0.28, Rare: 0.10, Exotic: 0.02, Legacy: 0.00 } },
   starter:  { name: "🌑 Starter Pack",  cost: 150,  currency: "coins", items: 3, grades: { Stock: 0.70, Refined: 0.25, Rare: 0.05, Exotic: 0.00, Legacy: 0.00 } },
   standard: { name: "💎 Standard Pack", cost: 600,  currency: "coins", items: 5, grades: { Stock: 0.50, Refined: 0.30, Rare: 0.15, Exotic: 0.05, Legacy: 0.00 } },
   premium:  { name: "✨ Premium Pack",  cost: 2500, currency: "coins", items: 5, grades: { Stock: 0.00, Refined: 0.40, Rare: 0.35, Exotic: 0.20, Legacy: 0.05 } },
@@ -100,7 +102,7 @@ export const gameRouter = createRouter({
   // ── Open pack (coins only) ────────────────────────────────────
   openPack: publicQuery
     .input(z.object({
-      packType: z.enum(["starter", "standard", "premium", "elite"]),
+      packType: z.enum(["flowers", "planets", "starter", "standard", "premium", "elite"]),
     }))
     .mutation(async ({ ctx, input }) => {
       const user = await getUser(ctx.req.headers);
