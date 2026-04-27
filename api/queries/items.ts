@@ -90,3 +90,11 @@ export async function getListedItems() {
     with: { template: true, user: true },
   });
 }
+
+export async function updateUserItem(id: number, data: Partial<{ isListed: boolean; marketPrice: number }>) {
+  await getDb()
+    .update(schema.userItems)
+    .set(data)
+    .where(eq(schema.userItems.id, id));
+  return getUserItemById(id);
+}
