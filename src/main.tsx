@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router'
 import './index.css'
 import { TRPCProvider } from "@/providers/trpc"
 import { TelegramAuthProvider } from "@/providers/telegram-auth"
+import { ToastContainer } from "@/components/Toast"
 import App from './App.tsx'
 
 createRoot(document.getElementById('root')!).render(
@@ -11,6 +12,7 @@ createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <TRPCProvider>
         <TelegramAuthProvider>
+          <ToastContainer />
           <App />
         </TelegramAuthProvider>
       </TRPCProvider>
