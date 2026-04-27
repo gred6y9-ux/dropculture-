@@ -4,6 +4,8 @@ import PackOpen from './pages/PackOpen'
 import Inventory from './pages/Inventory'
 import Market from './pages/Market'
 import ItemDetail from './pages/ItemDetail'
+import WheelPage from './pages/WheelPage'
+import BattlePass from './pages/BattlePass'
 
 export default function App() {
   return (
@@ -13,6 +15,8 @@ export default function App() {
       <Route path="/inventory" element={<Inventory />} />
       <Route path="/market" element={<Market />} />
       <Route path="/item/:id" element={<ItemDetail />} />
+      <Route path="/wheel" element={<WheelPage />} />
+      <Route path="/battle-pass" element={<BattlePass />} />
     </Routes>
   )
 }
