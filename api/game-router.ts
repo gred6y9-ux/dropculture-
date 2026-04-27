@@ -324,3 +324,7 @@ export const gameRouter = createRouter({
   }),
 });
 // export PACK_CONFIGS already done above
+
+// Add test collections (flowers + planets)
+// Call once via: POST /api/trpc/game.addTestCollections
+// with body {"json":{"secret":"dropculture-secret-2024-xyz!!"}}
