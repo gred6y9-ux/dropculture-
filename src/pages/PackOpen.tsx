@@ -16,9 +16,8 @@ const GRADE: Record<string, { bg: string; front: string; border: string; text: s
 };
 
 const PACKS = [
-  { id: "flowers", name: "Flowers", cost: 250, cur: "coins", items: 5,
-  image: "/packs/flowers-pack.jpeg",
-  cardBack: "/packs/flowers-card-back.jpeg",
+  { id: "flowers",  name: "Flowers",    cost: 250,  cur: "coins", items: 5, pattern: "🌸", accent: "#f43f5e", shine: "#fda4af", dark: "#881337",
+    gradient: ["#f43f5e","#be185d","#9d174d"] },
   { id: "planets",  name: "Planets",    cost: 300,  cur: "coins", items: 5, pattern: "🪐", accent: "#4f46e5", shine: "#818cf8", dark: "#1e1b4b",
     gradient: ["#4f46e5","#4338ca","#312e81"] },
   { id: "starter",  name: "Starter",    cost: 150,  cur: "coins", items: 5, pattern: "🌑", accent: "#64748b", shine: "#94a3b8", dark: "#0f172a",
