@@ -180,3 +180,14 @@ export type MarketListing = typeof marketListings.$inferSelect;
 export type InsertMarketListing = typeof marketListings.$inferInsert;
 export type Transaction = typeof transactions.$inferSelect;
 export type InsertTransaction = typeof transactions.$inferInsert;
+
+export const marketListingsRelations = relations(marketListings, ({ one }) => ({
+  item: one(userItems, {
+    fields: [marketListings.itemId],
+    references: [userItems.id],
+  }),
+  seller: one(users, {
+    fields: [marketListings.sellerId],
+    references: [users.id],
+  }),
+}));
