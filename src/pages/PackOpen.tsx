@@ -17,7 +17,7 @@ const GRADE: Record<string, { bg: string; front: string; border: string; text: s
 
 const PACKS = [
   { id: "flowers",  name: "Flowers",    cost: 250,  cur: "coins", items: 5, pattern: "🌸", accent: "#f43f5e", shine: "#fda4af", dark: "#881337",
-    gradient: ["#f43f5e","#be185d","#9d174d"] },
+    gradient: ["#f43f5e","#be185d","#9d174d"], image: "/packs/flowers-pack.jpeg" },
   { id: "planets",  name: "Planets",    cost: 300,  cur: "coins", items: 5, pattern: "🪐", accent: "#4f46e5", shine: "#818cf8", dark: "#1e1b4b",
     gradient: ["#4f46e5","#4338ca","#312e81"] },
   { id: "starter",  name: "Starter",    cost: 150,  cur: "coins", items: 5, pattern: "🌑", accent: "#64748b", shine: "#94a3b8", dark: "#0f172a",
@@ -38,10 +38,10 @@ const PACKS = [
 type Pack = typeof PACKS[0];
 
 // ─── Canvas Pack Visual ───────────────────────────────────────────
-function PackCanvas({ pack, torn }: { pack: Pack; torn: boolean }) {
+function PackCanvas({ pack, torn }: { pack: Pack & { image?: string }; torn: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const c = ref.current; if (!c) return;
+
+  const doDraw = (c: HTMLCanvasElement, img?: HTMLImageElement) => {
     const ctx = c.getContext("2d")!;
     const W = c.width, H = c.height;
     ctx.clearRect(0, 0, W, H);
@@ -56,66 +56,101 @@ function PackCanvas({ pack, torn }: { pack: Pack; torn: boolean }) {
       ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
     };
 
-    // Body gradient
-    const g = ctx.createLinearGradient(0, 0, W, H);
-    pack.gradient.forEach((c, i) => g.addColorStop(i / (pack.gradient.length - 1), c));
-    rr(0, 0, W, H, 16); ctx.fillStyle = g; ctx.fill();
-
-    // Diagonal shimmer lines
+    // Clip to rounded rect
+    rr(0, 0, W, H, 16);
     ctx.save(); ctx.clip();
-    ctx.strokeStyle = "rgba(255,255,255,0.07)"; ctx.lineWidth = 1;
-    for (let i = -H; i < W + H; i += 16) {
-      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + H, H); ctx.stroke();
+
+    if (img) {
+      // Draw image covering full canvas
+      ctx.drawImage(img, 0, 0, W, H);
+      // Subtle dark overlay for readability
+      ctx.fillStyle = "rgba(0,0,0,0.15)";
+      ctx.fillRect(0, 0, W, H);
+    } else {
+      // Body gradient fallback
+      const g = ctx.createLinearGradient(0, 0, W, H);
+      pack.gradient.forEach((col: string, i: number) => g.addColorStop(i / (pack.gradient.length - 1), col));
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      // Diagonal shimmer lines
+      ctx.strokeStyle = "rgba(255,255,255,0.07)"; ctx.lineWidth = 1;
+      for (let i = -H; i < W + H; i += 16) {
+        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + H, H); ctx.stroke();
+      }
     }
+
     ctx.restore();
+
+    ctx.restore();
+
+    // Rounded rect helper for overlays (after restore)
+    const rr2 = (x: number, y: number, w: number, h: number, r: number) => {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
+    };
 
     if (!torn) {
       // Gold tear strip
       const stripH = 38;
-      rr(0, 0, W, stripH, [16, 16, 0, 0] as any);
+      rr2(0, 0, W, stripH, 16);
       const sg = ctx.createLinearGradient(0, 0, W, 0);
       sg.addColorStop(0, "#92400e"); sg.addColorStop(0.25, "#fde68a"); sg.addColorStop(0.5, "#fbbf24"); sg.addColorStop(0.75, "#fde68a"); sg.addColorStop(1, "#92400e");
       ctx.fillStyle = sg; ctx.fill();
-
       // Perforations
       ctx.fillStyle = "rgba(0,0,0,0.35)";
       for (let x = 14; x < W - 14; x += 13) { ctx.beginPath(); ctx.arc(x, stripH - 5, 3, 0, Math.PI * 2); ctx.fill(); }
-
       // Strip text
-      ctx.fillStyle = "rgba(255,255,255,0.7)"; ctx.font = "bold 9px Arial"; ctx.textAlign = "center";
+      ctx.fillStyle = "rgba(255,255,255,0.85)"; ctx.font = "bold 9px Arial"; ctx.textAlign = "center";
       ctx.fillText("✂  ВІДРИВНИЙ КРАЙ  ✂", W / 2, 19);
     } else {
-      // Torn edge effect - jagged top
+      // Torn jagged top
       ctx.fillStyle = pack.gradient[0];
       ctx.beginPath(); ctx.moveTo(0, 0);
       for (let x = 0; x <= W; x += 8) { ctx.lineTo(x, Math.random() * 14); }
       ctx.lineTo(W, 0); ctx.closePath(); ctx.fill();
     }
 
-    // Center pattern emoji
-    ctx.font = "52px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    ctx.shadowColor = "rgba(0,0,0,0.3)"; ctx.shadowBlur = 8;
-    ctx.fillText(pack.pattern, W / 2, H / 2 + (torn ? 0 : 8));
-    ctx.shadowBlur = 0;
+    // Only show emoji if no image
+    if (!img) {
+      ctx.font = "52px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = "rgba(255,255,255,0.9)";
+      ctx.shadowColor = "rgba(0,0,0,0.3)"; ctx.shadowBlur = 8;
+      ctx.fillText(pack.pattern, W / 2, H / 2 + (torn ? 0 : 8));
+      ctx.shadowBlur = 0;
+    }
 
     // Bottom banner
     const bannerY = H - 50;
-    ctx.fillStyle = "rgba(0,0,0,0.45)";
-    rr(0, bannerY, W, 50, [0, 0, 16, 16] as any); ctx.fill();
-    ctx.fillStyle = "#ffffff"; ctx.font = "bold 15px Arial"; ctx.textBaseline = "middle";
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    rr2(0, bannerY, W, 50, 0); ctx.fill();
+    ctx.fillStyle = "#ffffff"; ctx.font = "bold 15px Arial"; ctx.textBaseline = "middle"; ctx.textAlign = "center";
     ctx.fillText(pack.name.toUpperCase(), W / 2, bannerY + 18);
-    ctx.fillStyle = "rgba(255,255,255,0.45)"; ctx.font = "10px Arial";
+    ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.font = "10px Arial";
     ctx.fillText(`${pack.items} карток`, W / 2, bannerY + 36);
 
     // Shine overlay
     const sh = ctx.createLinearGradient(0, 0, W * 0.6, H * 0.4);
-    sh.addColorStop(0, "rgba(255,255,255,0.18)"); sh.addColorStop(1, "rgba(0,0,0,0)");
-    rr(0, 0, W, H, 16); ctx.fillStyle = sh; ctx.fill();
+    sh.addColorStop(0, "rgba(255,255,255,0.12)"); sh.addColorStop(1, "rgba(0,0,0,0)");
+    rr2(0, 0, W, H, 16); ctx.fillStyle = sh; ctx.fill();
 
     // Border
     ctx.strokeStyle = "rgba(255,255,255,0.25)"; ctx.lineWidth = 1.5;
-    rr(0.75, 0.75, W - 1.5, H - 1.5, 16); ctx.stroke();
+    rr2(0.75, 0.75, W - 1.5, H - 1.5, 16); ctx.stroke();
+  };
+
+  useEffect(() => {
+    const c = ref.current; if (!c) return;
+    if ((pack as any).image) {
+      const img = new Image();
+      img.onload = () => doDraw(c, img);
+      img.onerror = () => doDraw(c);
+      img.src = (pack as any).image;
+    } else {
+      doDraw(c);
+    }
   }, [pack, torn]);
 
   return <canvas ref={ref} width={200} height={280} className="rounded-2xl shadow-2xl" />;
