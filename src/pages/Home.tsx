@@ -181,26 +181,31 @@ export default function Home() {
 
         {/* Trending */}
         <div>
-          <h3 className="font-bold text-white mb-2 flex items-center gap-2 text-sm">
+          <h3 className="font-bold text-white mb-3 flex items-center gap-2 text-sm">
             <TrendingUp className="w-4 h-4 text-green-400" /> Trending
           </h3>
-          {[{ name: "Eternal Flame", grade: "Legacy", price: 12500, change: "+12%" },
-            { name: "Abyss Eye", grade: "Legacy", price: 18700, change: "+8%" },
-            { name: "Plasma Cage", grade: "Exotic", price: 3400, change: "+5%" }].map((item, i) => (
-            <Card key={i} className="bg-[#12121a] border-[#1e1e2e] p-3 flex items-center justify-between mb-2 rounded-2xl">
-              <div className="flex items-center gap-3">
-                <div className={`w-1.5 h-8 rounded-full ${GRADE_COLORS[item.grade]}`} />
-                <div>
-                  <p className="text-sm font-bold text-white">{item.name}</p>
-                  <p className={`text-xs ${GRADE_TEXT[item.grade]}`}>{item.grade}</p>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { name: "Eternal Flame", grade: "Legacy",  price: 12500, change: "+12%", emoji: "👑", bg: "from-amber-700 to-amber-900",   border: "border-amber-500/40" },
+              { name: "Abyss Eye",     grade: "Legacy",  price: 18700, change: "+8%",  emoji: "👑", bg: "from-amber-700 to-amber-900",   border: "border-amber-500/40" },
+              { name: "Plasma Cage",   grade: "Exotic",  price: 3400,  change: "+5%",  emoji: "🌸", bg: "from-pink-700 to-pink-900",     border: "border-pink-500/40"  },
+              { name: "Nebula Heart",  grade: "Rare",    price: 950,   change: "+3%",  emoji: "🟣", bg: "from-purple-700 to-purple-900", border: "border-purple-500/40"},
+              { name: "Static Core",   grade: "Refined", price: 120,   change: "+1%",  emoji: "🔵", bg: "from-blue-700 to-blue-900",     border: "border-blue-500/40"  },
+              { name: "Prism Light",   grade: "Exotic",  price: 2800,  change: "+7%",  emoji: "🌸", bg: "from-pink-700 to-pink-900",     border: "border-pink-500/40"  },
+            ].map((item, i) => (
+              <div key={i} className={`bg-gradient-to-br ${item.bg} border ${item.border} rounded-2xl overflow-hidden`}>
+                <div className="p-2.5 flex flex-col h-full">
+                  <div className="text-2xl mb-1.5 text-center">{item.emoji}</div>
+                  <p className="text-[10px] font-bold text-white text-center leading-tight mb-1 line-clamp-2">{item.name}</p>
+                  <p className={`text-[8px] ${GRADE_TEXT[item.grade]} text-center font-semibold mb-1.5`}>{item.grade}</p>
+                  <div className="mt-auto">
+                    <p className="text-[10px] font-bold text-yellow-400 text-center">{item.price.toLocaleString()}₵</p>
+                    <p className="text-[9px] text-green-400 text-center">{item.change}</p>
+                  </div>
                 </div>
               </div>
-              <div className="text-right">
-                <p className="text-sm font-bold text-yellow-400">{item.price.toLocaleString()}₵</p>
-                <p className="text-xs text-green-400">{item.change}</p>
-              </div>
-            </Card>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
 

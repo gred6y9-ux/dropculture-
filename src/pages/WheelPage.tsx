@@ -7,166 +7,182 @@ import { useNavigate } from "react-router";
 import { ArrowLeft, Zap, Star, Clock } from "lucide-react";
 import { toast } from "@/components/Toast";
 
-// ─── FREE WHEEL ──────────────────────────────────────────────────
 const FREE_SECTORS = [
-  { label: "50₵",     color: "#4f46e5", textColor: "#c7d2fe", weight: 35 },
-  { label: "Stock 🎁", color: "#334155", textColor: "#cbd5e1", weight: 8  },
-  { label: "100₵",    color: "#7c3aed", textColor: "#ddd6fe", weight: 25 },
-  { label: "Refined ✨", color: "#1d4ed8", textColor: "#bfdbfe", weight: 5 },
-  { label: "250₵",    color: "#6d28d9", textColor: "#ede9fe", weight: 15 },
-  { label: "Stock 🎁", color: "#334155", textColor: "#cbd5e1", weight: 5  },
-  { label: "500₵",    color: "#9333ea", textColor: "#f3e8ff", weight: 5  },
-  { label: "1000₵ 🎰", color: "#b45309", textColor: "#fde68a", weight: 1.5 },
-  { label: "250₵",    color: "#6d28d9", textColor: "#ede9fe", weight: 10 },
-  { label: "Rare 🟣",  color: "#5b21b6", textColor: "#e9d5ff", weight: 0.5 },
+  { label: "50₵",      emoji: "💰", color: "#312e81", weight: 35 },
+  { label: "Stock",    emoji: "⚫", color: "#1e293b", weight: 8  },
+  { label: "100₵",     emoji: "💰", color: "#4c1d95", weight: 25 },
+  { label: "Refined",  emoji: "🔵", color: "#1e3a5f", weight: 5  },
+  { label: "250₵",     emoji: "💰", color: "#6b21a8", weight: 15 },
+  { label: "500₵",     emoji: "💰", color: "#7e22ce", weight: 5  },
+  { label: "1000₵",   emoji: "🎰", color: "#78350f", weight: 1.5 },
+  { label: "Rare",     emoji: "🟣", color: "#3b0764", weight: 0.5 },
 ];
 
-// ─── VIP WHEEL ───────────────────────────────────────────────────
 const VIP_SECTORS = [
-  { label: "500₵",       color: "#0f766e", textColor: "#99f6e4", weight: 20 },
-  { label: "Rare 🟣",    color: "#5b21b6", textColor: "#e9d5ff", weight: 20 },
-  { label: "1000₵",      color: "#b45309", textColor: "#fde68a", weight: 15 },
-  { label: "Exotic 🌸",  color: "#9d174d", textColor: "#fbcfe8", weight: 15 },
-  { label: "2000₵ 🎰",   color: "#92400e", textColor: "#fef08a", weight: 10 },
-  { label: "Refined ✨",  color: "#1d4ed8", textColor: "#bfdbfe", weight: 10 },
-  { label: "5 Stars ⭐",  color: "#7c2d12", textColor: "#fed7aa", weight: 8  },
-  { label: "Legacy 👑",  color: "#713f12", textColor: "#fef9c3", weight: 2  },
+  { label: "500₵",    emoji: "💰", color: "#064e3b", weight: 20 },
+  { label: "Rare",    emoji: "🟣", color: "#3b0764", weight: 20 },
+  { label: "1000₵",  emoji: "💰", color: "#78350f", weight: 15 },
+  { label: "Exotic",  emoji: "🌸", color: "#831843", weight: 15 },
+  { label: "2000₵",  emoji: "🎰", color: "#92400e", weight: 10 },
+  { label: "Refined", emoji: "🔵", color: "#1e3a5f", weight: 10 },
+  { label: "5 Stars", emoji: "⭐", color: "#7c2d12", weight: 8  },
+  { label: "Legacy",  emoji: "👑", color: "#713f12", weight: 2  },
 ];
 
-function drawWheel(canvas: HTMLCanvasElement, sectors: typeof FREE_SECTORS, rotation: number) {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  const W = canvas.width, H = canvas.height;
-  const cx = W / 2, cy = H / 2, r = Math.min(cx, cy) - 6;
-  const total = sectors.reduce((s, x) => s + x.weight, 0);
+type Sector = { label: string; emoji: string; color: string; weight: number };
 
-  ctx.clearRect(0, 0, W, H);
+function WheelCanvas({ sectors, spinning, onEnd }: { sectors: Sector[]; spinning: boolean; onEnd: (idx: number) => void }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const rotRef = useRef(0);
+  const animRef = useRef<number>();
+  const activeRef = useRef(false);
 
-  // Shadow
-  ctx.save();
-  ctx.shadowColor = "rgba(139, 92, 246, 0.4)";
-  ctx.shadowBlur = 20;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r + 4, 0, Math.PI * 2);
-  ctx.fillStyle = "transparent";
-  ctx.fill();
-  ctx.restore();
+  const draw = (rot: number) => {
+    const c = ref.current;
+    if (!c) return;
+    const ctx = c.getContext("2d")!;
+    const S = c.width;
+    const cx = S / 2, cy = S / 2, R = S / 2 - 8;
+    const total = sectors.reduce((s, x) => s + x.weight, 0);
 
-  let startAngle = rotation - Math.PI / 2;
-  for (const s of sectors) {
-    const angle = (s.weight / total) * Math.PI * 2;
-    const endAngle = startAngle + angle;
+    ctx.clearRect(0, 0, S, S);
 
+    // Outer glow
+    const glow = ctx.createRadialGradient(cx, cy, R - 4, cx, cy, R + 8);
+    glow.addColorStop(0, "rgba(139,92,246,0.3)");
+    glow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(cx, cy, R + 10, 0, Math.PI * 2); ctx.fill();
+
+    // Sectors
+    let angle = rot - Math.PI / 2;
+    sectors.forEach((s) => {
+      const span = (s.weight / total) * Math.PI * 2;
+      // Fill
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, R, angle, angle + span);
+      ctx.closePath();
+      ctx.fillStyle = s.color;
+      ctx.fill();
+      // Divider
+      ctx.strokeStyle = "rgba(0,0,0,0.5)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Label (emoji + text) — horizontal, positioned along sector mid-radius
+      const mid = angle + span / 2;
+      const labelR = R * 0.62;
+      const lx = cx + labelR * Math.cos(mid);
+      const ly = cy + labelR * Math.sin(mid);
+
+      ctx.save();
+      ctx.translate(lx, ly);
+
+      // Always keep text readable — rotate so text reads from center outward
+      // Add 90° so text goes around the wheel perpendicular to radius
+      ctx.rotate(mid + Math.PI / 2);
+
+      // Emoji
+      ctx.font = "13px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(s.emoji, 0, -9);
+
+      // Label
+      ctx.font = "bold 9px Arial";
+      ctx.fillStyle = "#ffffff";
+      ctx.shadowColor = "rgba(0,0,0,0.8)";
+      ctx.shadowBlur = 3;
+      ctx.fillText(s.label, 0, 4);
+
+      ctx.restore();
+      angle += span;
+    });
+
+    // Outer ring
     ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, r, startAngle, endAngle);
-    ctx.closePath();
-    ctx.fillStyle = s.color;
-    ctx.fill();
-    ctx.strokeStyle = "#0a0a0f";
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(255,255,255,0.12)";
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Text
-    const mid = startAngle + angle / 2;
-    const tx = cx + (r * 0.66) * Math.cos(mid);
-    const ty = cy + (r * 0.66) * Math.sin(mid);
-    ctx.save();
-    ctx.translate(tx, ty);
-    ctx.rotate(mid + Math.PI / 2);
-    ctx.fillStyle = s.textColor;
-    ctx.font = `bold 10px Arial`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(s.label, 0, 0);
-    ctx.restore();
-    startAngle = endAngle;
-  }
+    // Gold rim
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(251,191,36,0.4)";
+    ctx.lineWidth = 3;
+    ctx.stroke();
 
-  // Outer ring
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.strokeStyle = "rgba(255,255,255,0.15)";
-  ctx.lineWidth = 3;
-  ctx.stroke();
+    // Inner hub
+    const hub = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 0.12);
+    hub.addColorStop(0, "#ffffff");
+    hub.addColorStop(0.6, "#e5e7eb");
+    hub.addColorStop(1, "#9ca3af");
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * 0.12, 0, Math.PI * 2);
+    ctx.fillStyle = hub;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,0.3)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  };
 
-  // Gold ring
-  ctx.beginPath();
-  ctx.arc(cx, cy, r - 1, 0, Math.PI * 2);
-  ctx.strokeStyle = "rgba(251, 191, 36, 0.4)";
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  // Center
-  const centerGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 0.13);
-  centerGrad.addColorStop(0, "#ffffff");
-  centerGrad.addColorStop(1, "#d1d5db");
-  ctx.beginPath();
-  ctx.arc(cx, cy, r * 0.13, 0, Math.PI * 2);
-  ctx.fillStyle = centerGrad;
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(cx, cy, r * 0.13, 0, Math.PI * 2);
-  ctx.strokeStyle = "#0a0a0f";
-  ctx.lineWidth = 2;
-  ctx.stroke();
-}
-
-function WheelCanvas({ sectors, isSpinning, onSpinEnd }: { sectors: typeof FREE_SECTORS; isSpinning: boolean; onSpinEnd: (idx: number) => void }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const rotRef = useRef(0);
-  const animRef = useRef<number>();
-  const spinningRef = useRef(false);
+  useEffect(() => { draw(rotRef.current); }, [sectors]);
 
   useEffect(() => {
-    if (canvasRef.current) drawWheel(canvasRef.current, sectors, rotRef.current);
-  }, [sectors]);
+    if (!spinning || activeRef.current) return;
+    activeRef.current = true;
+    const total = Math.PI * 2 * (7 + Math.random() * 5);
+    const dur = 4500 + Math.random() * 800;
+    const t0 = Date.now();
+    const r0 = rotRef.current;
 
-  useEffect(() => {
-    if (isSpinning && !spinningRef.current) {
-      spinningRef.current = true;
-      const totalRot = Math.PI * 2 * (7 + Math.random() * 5);
-      const duration = 4500 + Math.random() * 1000;
-      const start = Date.now();
-      const startRot = rotRef.current;
-
-      const animate = () => {
-        const elapsed = Date.now() - start;
-        const t = Math.min(elapsed / duration, 1);
-        const ease = 1 - Math.pow(1 - t, 4);
-        rotRef.current = startRot + totalRot * ease;
-        if (canvasRef.current) drawWheel(canvasRef.current, sectors, rotRef.current);
-        if (t < 1) {
-          animRef.current = requestAnimationFrame(animate);
-        } else {
-          spinningRef.current = false;
-          const finalAngle = ((rotRef.current % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-          const total = sectors.reduce((s, x) => s + x.weight, 0);
-          let cum = 0, idx = 0;
-          for (let i = 0; i < sectors.length; i++) {
-            cum += (sectors[i].weight / total) * Math.PI * 2;
-            if (finalAngle < cum) { idx = i; break; }
-          }
-          onSpinEnd(idx);
+    const go = () => {
+      const p = Math.min((Date.now() - t0) / dur, 1);
+      const ease = 1 - Math.pow(1 - p, 4);
+      rotRef.current = r0 + total * ease;
+      draw(rotRef.current);
+      if (p < 1) { animRef.current = requestAnimationFrame(go); }
+      else {
+        activeRef.current = false;
+        const sectorTotal = sectors.reduce((s, x) => s + x.weight, 0);
+        // Pointer at top (angle = -PI/2 from center)
+        // Our rotation start is at -PI/2, so final angle relative to top:
+        const finalRot = ((rotRef.current % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+        let cum = 0, idx = 0;
+        for (let i = 0; i < sectors.length; i++) {
+          cum += (sectors[i].weight / sectorTotal) * Math.PI * 2;
+          if (finalRot < cum) { idx = i; break; }
         }
-      };
-      animRef.current = requestAnimationFrame(animate);
-    }
+        onEnd(idx);
+      }
+    };
+    animRef.current = requestAnimationFrame(go);
     return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
-  }, [isSpinning]);
+  }, [spinning]);
 
   return (
-    <div className="relative flex flex-col items-center">
-      {/* Arrow */}
-      <div className="relative z-10 mb-1">
-        <div className="w-0 h-0" style={{ borderLeft: "12px solid transparent", borderRight: "12px solid transparent", borderTop: "24px solid #f59e0b", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))" }} />
+    <div className="relative inline-flex flex-col items-center">
+      {/* Arrow pointer */}
+      <div className="relative z-10 mb-[-2px]">
+        <div style={{
+          width: 0, height: 0,
+          borderLeft: "13px solid transparent",
+          borderRight: "13px solid transparent",
+          borderTop: "26px solid #f59e0b",
+          filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.6))",
+        }} />
+        <div style={{
+          width: 0, height: 0,
+          position: "absolute", top: 2, left: "50%", transform: "translateX(-50%)",
+          borderLeft: "10px solid transparent",
+          borderRight: "10px solid transparent",
+          borderTop: "22px solid #fbbf24",
+        }} />
       </div>
-      <div className="relative">
-        <canvas ref={canvasRef} width={300} height={300} />
-        {isSpinning && (
-          <div className="absolute inset-[-4px] rounded-full border-2 border-amber-400/60 animate-pulse" />
-        )}
-      </div>
+      <canvas ref={ref} width={300} height={300} className="rounded-full" />
+      {spinning && <div className="absolute inset-0 rounded-full border-4 border-amber-400/30 animate-pulse" style={{ margin: -4 }} />}
     </div>
   );
 }
@@ -175,29 +191,28 @@ export default function WheelPage() {
   const { isAuthenticated } = useTelegramAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState<"free" | "vip">("free");
-  const [isSpinning, setIsSpinning] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
+  const [spinning, setSpinning] = useState(false);
+  const [result, setResult] = useState<{ label: string; emoji: string } | null>(null);
 
   const { data: wheelStatus, refetch: refetchWheel } = trpc.wheel.status.useQuery(undefined, { enabled: isAuthenticated });
   const { data: profile, refetch: refetchProfile } = trpc.game.getProfile.useQuery(undefined, { enabled: isAuthenticated });
 
-  const spinMutation = trpc.wheel.spin.useMutation({
-    onSuccess: (data) => { setResult(data.rewardDescription); refetchWheel(); refetchProfile(); },
-    onError: (err) => { setIsSpinning(false); setResult(null); toast.error("Помилка", err.message); },
+  const spinMut = trpc.wheel.spin.useMutation({
+    onSuccess: (data) => { setResult({ label: data.rewardDescription, emoji: "🎉" }); refetchWheel(); refetchProfile(); },
+    onError: (err) => { setSpinning(false); toast.error("Помилка", err.message); },
   });
 
   const handleSpin = () => {
     if (tab === "vip") { toast.info("Незабаром!", "VIP колесо за Stars в розробці"); return; }
-    if (!wheelStatus?.canSpin || isSpinning) return;
-    setIsSpinning(true);
+    if (!wheelStatus?.canSpin || spinning) return;
+    setSpinning(true);
     setResult(null);
-    spinMutation.mutate();
+    spinMut.mutate();
   };
 
-  const handleSpinEnd = () => { setIsSpinning(false); };
-
-  const canSpin = tab === "vip" ? false : (wheelStatus?.canSpin ?? false);
+  const handleEnd = () => setSpinning(false);
   const sectors = tab === "vip" ? VIP_SECTORS : FREE_SECTORS;
+  const canSpin = tab === "free" && (wheelStatus?.canSpin ?? false);
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white pb-8">
@@ -207,7 +222,7 @@ export default function WheelPage() {
         </Button>
         <div className="flex-1">
           <h1 className="font-bold text-base">Колесо фортуни</h1>
-          <p className="text-xs text-slate-500">Раз на 12 годин · безкоштовно</p>
+          <p className="text-xs text-slate-500">Безкоштовне раз на 12 год</p>
         </div>
         <div className="flex items-center gap-1.5 bg-[#1a1a28] rounded-xl px-3 py-1.5">
           <Zap className="w-3.5 h-3.5 text-yellow-400" />
@@ -219,31 +234,31 @@ export default function WheelPage() {
         {/* Tabs */}
         <div className="flex gap-2 mb-4">
           <button onClick={() => setTab("free")}
-            className={`flex-1 py-2.5 rounded-2xl text-sm font-bold transition-all ${tab === "free" ? "bg-purple-600 text-white" : "bg-[#12121a] text-slate-400"}`}>
+            className={`flex-1 py-2.5 rounded-2xl text-sm font-bold transition-all ${tab === "free" ? "bg-purple-600 text-white shadow-lg shadow-purple-500/20" : "bg-[#12121a] text-slate-400"}`}>
             🎡 Безкоштовне
           </button>
           <button onClick={() => setTab("vip")}
-            className={`flex-1 py-2.5 rounded-2xl text-sm font-bold transition-all relative ${tab === "vip" ? "bg-amber-600 text-white" : "bg-[#12121a] text-slate-400"}`}>
-            👑 VIP
-            <span className="absolute -top-1.5 -right-1 bg-purple-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">STARS</span>
+            className={`flex-1 py-2.5 rounded-2xl text-sm font-bold transition-all relative ${tab === "vip" ? "bg-gradient-to-r from-amber-500 to-yellow-500 text-black" : "bg-[#12121a] text-slate-400"}`}>
+            👑 VIP Stars
+            <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">NEW</span>
           </button>
         </div>
 
-        {/* VIP notice */}
+        {/* VIP info */}
         {tab === "vip" && (
           <Card className="bg-gradient-to-r from-amber-900/40 to-yellow-900/40 border border-amber-500/30 rounded-2xl p-3 mb-4 flex items-center gap-3">
             <Star className="w-5 h-5 text-amber-400 flex-shrink-0" />
             <div>
-              <p className="text-white font-bold text-sm">VIP колесо · 10 Stars за кручення</p>
-              <p className="text-xs text-slate-400">Тільки Rare+ нагороди та більші монети</p>
+              <p className="text-white font-bold text-sm">VIP колесо · 10 Stars за спін</p>
+              <p className="text-xs text-slate-400">Тільки Rare+ · Більші монети · Legacy шанс</p>
             </div>
           </Card>
         )}
 
-        {/* Cooldown notice */}
+        {/* Cooldown */}
         {tab === "free" && !wheelStatus?.canSpin && (
           <Card className="bg-[#1a1a28] border-[#2a2a3e] rounded-2xl p-3 mb-4 flex items-center gap-3">
-            <Clock className="w-5 h-5 text-purple-400 flex-shrink-0" />
+            <Clock className="w-5 h-5 text-purple-400" />
             <div>
               <p className="text-white font-bold text-sm">Наступне кручення</p>
               <p className="text-slate-400 text-xs">через {wheelStatus?.hoursRemaining ?? "..."} годин</p>
@@ -252,44 +267,47 @@ export default function WheelPage() {
         )}
 
         {/* Result */}
-        {result && (
-          <div className="bg-green-900/40 border border-green-500/30 rounded-2xl p-3 mb-4 text-center">
-            <p className="text-2xl mb-1">🎉</p>
-            <p className="text-green-400 font-bold">{result}</p>
+        {result && !spinning && (
+          <div className="bg-gradient-to-r from-green-900/40 to-emerald-900/40 border border-green-500/30 rounded-2xl p-3 mb-4 text-center">
+            <p className="text-2xl mb-1">{result.emoji}</p>
+            <p className="text-green-400 font-bold text-lg">{result.label}</p>
           </div>
         )}
 
         {/* Wheel */}
-        <div className="flex justify-center my-4">
-          <WheelCanvas key={tab} sectors={sectors} isSpinning={isSpinning} onSpinEnd={handleSpinEnd} />
+        <div className="flex justify-center mb-4">
+          <WheelCanvas sectors={sectors} spinning={spinning} onEnd={handleEnd} />
         </div>
 
         {/* Spin button */}
-        <Button onClick={handleSpin} disabled={isSpinning || (!canSpin && tab === "free")}
-          className={`w-full h-14 text-base font-bold rounded-2xl mb-4 transition-all ${
-            isSpinning ? "bg-purple-800 text-purple-300" :
-            tab === "vip" ? "bg-gradient-to-r from-amber-500 to-yellow-500 text-black" :
+        <Button onClick={handleSpin} disabled={spinning || (!canSpin && tab === "free")}
+          className={`w-full h-14 text-base font-bold rounded-2xl mb-6 ${
+            spinning ? "bg-purple-900 text-purple-300 cursor-wait" :
+            tab === "vip" ? "bg-gradient-to-r from-amber-500 to-yellow-500 text-black hover:opacity-90" :
             canSpin ? "bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90 shadow-lg shadow-purple-500/20" :
             "bg-[#1a1a28] text-slate-500 cursor-not-allowed"
           }`}>
-          {isSpinning ? "🎡 Крутиться..." :
+          {spinning ? "🎡 Крутиться..." :
            tab === "vip" ? "⭐ 10 Stars — Незабаром" :
            canSpin ? "🎡 Крутити!" :
-           `⏱ Через ${wheelStatus?.hoursRemaining ?? "..."} год`}
+           `⏱ Через ${wheelStatus?.hoursRemaining ?? "..."}г`}
         </Button>
 
-        {/* Prizes */}
-        <div>
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Можливі нагороди</p>
-          <div className="grid grid-cols-2 gap-1.5">
-            {sectors.map((s, i) => (
-              <div key={i} className="bg-[#12121a] border border-[#1e1e2e] rounded-xl p-2 flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
-                <p className="text-xs text-white font-semibold flex-1 truncate">{s.label}</p>
-                <p className="text-[9px] text-slate-500">{s.weight}%</p>
+        {/* Prizes grid */}
+        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Можливі нагороди</p>
+        <div className="grid grid-cols-2 gap-1.5">
+          {sectors.map((s, i) => (
+            <div key={i} className="bg-[#12121a] border border-[#1e1e2e] rounded-xl p-2.5 flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center text-base flex-shrink-0"
+                style={{ background: s.color }}>
+                {s.emoji}
               </div>
-            ))}
-          </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-white font-semibold">{s.label}</p>
+                <p className="text-[9px] text-slate-500">{s.weight}% шанс</p>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
