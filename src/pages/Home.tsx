@@ -153,7 +153,7 @@ export default function Home() {
                 onClick={() => { if (!wheelStatus?.canSpin || isSpinning) return; setIsSpinning(true); spinWheel.mutate(); }}
                 disabled={!wheelStatus?.canSpin || isSpinning}
                 className="bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90 disabled:opacity-40 rounded-xl text-xs font-bold px-4 flex-shrink-0">
-                {isSpinning ? "🎡" : wheelStatus?.canSpin ? "Крути!" : `${wheelStatus?.hoursRemaining}г`}
+                {isSpinning ? "🎡" : wheelStatus?.canSpin ? "Крути!" : `${wheelStatus?.hoursRemaining ?? "..."}г`}
               </Button>
             </div>
           </Card>
