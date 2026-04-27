@@ -2,6 +2,7 @@ import { telegramAuthRouter } from "./telegram-auth-router";
 import { gameRouter } from "./game-router";
 import { marketRouter } from "./market-router";
 import { seedRouter } from "./seed-router";
+import { wheelRouter } from "./wheel-router";
 import { createRouter, publicQuery } from "./middleware";
 
 export const appRouter = createRouter({
@@ -10,6 +11,7 @@ export const appRouter = createRouter({
   game: gameRouter,
   market: marketRouter,
   seed: seedRouter,
+  wheel: wheelRouter,
 });
 
 export type AppRouter = typeof appRouter;
