@@ -364,7 +364,16 @@ export default function PackOpen() {
       {/* Header */}
       <div className="px-4 pt-5 pb-3 flex items-center gap-3 relative z-10">
         <Button variant="ghost" size="icon"
-          onClick={() => ["done", "select"].includes(phase) ? navigate("/") : reset()}
+          onClick={() => {
+            // Smart navigation: if user came directly with type in URL, go home
+            // Otherwise go back to pack selector
+            if (phase === "select") return navigate("/");
+            if (phase === "done") return navigate("/");
+            if (urlType && phase === "idle") return navigate("/");
+            // From idle without urlType — back to select
+            // From tear/fly/revealing — reset to clean state (don't lose pack)
+            reset();
+          }}
           className="text-slate-400 hover:text-white">
           <ArrowLeft className="w-5 h-5" />
         </Button>

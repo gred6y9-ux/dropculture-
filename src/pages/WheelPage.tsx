@@ -76,29 +76,36 @@ function WheelCanvas({ sectors, spinning, onEnd }: { sectors: Sector[]; spinning
         return;
       }
 
-      // Position label horizontally near outer edge
+      // Text along radius — reads from center outward
       const mid = angle + span / 2;
-      const labelR = R * 0.7;
-      const lx = cx + labelR * Math.cos(mid);
-      const ly = cy + labelR * Math.sin(mid);
 
       ctx.save();
-      ctx.translate(lx, ly);
-      // Rotate so text is tangent to circle (perpendicular to radius)
-      ctx.rotate(mid + Math.PI / 2);
+      ctx.translate(cx, cy);
+      ctx.rotate(mid);
+      // Now x-axis points outward from center along sector mid
 
-      // Emoji on top
-      ctx.font = "12px Arial";
-      ctx.textAlign = "center";
+      // Determine if sector is on the right half (text reads left-to-right)
+      // or left half (need to flip 180° so it doesn't read upside down)
+      const normalizedMid = ((mid % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+      const flipped = normalizedMid > Math.PI / 2 && normalizedMid < Math.PI * 1.5;
+
+      if (flipped) {
+        ctx.rotate(Math.PI);
+        // Position from inside-out (because flipped)
+        ctx.textAlign = "left";
+      } else {
+        ctx.textAlign = "right";
+      }
+
       ctx.textBaseline = "middle";
-      ctx.fillText(s.emoji, 0, -8);
-
-      // Label below
-      ctx.font = "bold 9px Arial";
-      ctx.fillStyle = "#ffffff";
       ctx.shadowColor = "rgba(0,0,0,0.9)";
-      ctx.shadowBlur = 4;
-      ctx.fillText(s.label, 0, 4);
+      ctx.shadowBlur = 5;
+
+      // Emoji + label on same line, near outer edge
+      const textX = flipped ? -R * 0.85 : R * 0.85;
+      ctx.font = "bold 11px Arial";
+      ctx.fillStyle = "#ffffff";
+      ctx.fillText(`${s.emoji} ${s.label}`, textX, 0);
 
       ctx.restore();
       angle += span;

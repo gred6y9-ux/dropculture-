@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { trpc } from "@/providers/trpc";
 import { useNavigate } from "react-router";
-import { Package, Backpack, Store, Sparkles, TrendingUp, Zap, Star, Gift, Flame, ChevronRight, RotateCcw } from "lucide-react";
+import { Package, Backpack, Store, Sparkles, TrendingUp, Zap, Star, Gift, Flame, ChevronRight, RotateCcw, Receipt } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "@/components/Toast";
 
@@ -190,6 +190,19 @@ export default function Home() {
           <div className="flex-1">
             <p className="font-bold text-white text-sm">Battle Pass · Сезон 1</p>
             <p className="text-xs text-slate-500">50 рівнів · Ексклюзивні нагороди</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-slate-600" />
+        </Card>
+
+        {/* Transactions */}
+        <Card onClick={() => navigate("/transactions")}
+          className="bg-gradient-to-r from-[#0f1a0a] to-[#12121a] border-green-500/20 rounded-2xl p-4 cursor-pointer active:scale-95 transition-all hover:border-green-500/30 flex items-center gap-3">
+          <div className="w-10 h-10 bg-green-500/20 rounded-xl flex items-center justify-center">
+            <Receipt className="w-5 h-5 text-green-400" />
+          </div>
+          <div className="flex-1">
+            <p className="font-bold text-white text-sm">Мої угоди</p>
+            <p className="text-xs text-slate-500">Історія продажів і покупок</p>
           </div>
           <ChevronRight className="w-4 h-4 text-slate-600" />
         </Card>
