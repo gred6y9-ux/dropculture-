@@ -137,18 +137,33 @@ export default function Home() {
         <div className="grid grid-cols-2 gap-2">
           {/* Daily */}
           <Card className="bg-gradient-to-br from-[#0f1a28] to-[#12121a] border-blue-500/20 rounded-2xl p-3">
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-1.5">
               <Gift className="w-4 h-4 text-blue-400" />
               <p className="font-bold text-white text-xs">Щоденний пак</p>
             </div>
-            <div className="flex gap-0.5 mb-2">
-              {Array.from({ length: 7 }).map((_, i) => (
-                <div key={i} className={`flex-1 h-1 rounded-full ${i < (dailyStatus?.streak ?? 0) ? "bg-purple-500" : "bg-[#1e1e2e]"}`} />
-              ))}
+            {/* Status text */}
+            {dailyStatus?.canClaim ? (
+              <p className="text-[10px] text-green-400 mb-1.5 font-semibold">✓ Готовий до отримання</p>
+            ) : (
+              <p className="text-[10px] text-slate-500 mb-1.5">⏱ через {dailyStatus?.hoursRemaining ?? "..."} год</p>
+            )}
+            {/* Streak with day labels */}
+            <div className="mb-2">
+              <div className="flex justify-between mb-0.5">
+                {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"].map((d, i) => (
+                  <span key={d} className={`text-[8px] font-bold ${i < (dailyStatus?.streak ?? 0) ? "text-purple-400" : "text-slate-600"}`}>{d}</span>
+                ))}
+              </div>
+              <div className="flex gap-0.5">
+                {Array.from({ length: 7 }).map((_, i) => (
+                  <div key={i} className={`flex-1 h-1.5 rounded-full ${i < (dailyStatus?.streak ?? 0) ? "bg-purple-500" : "bg-[#1e1e2e]"}`} />
+                ))}
+              </div>
+              <p className="text-[8px] text-slate-500 mt-0.5">Streak {dailyStatus?.streak ?? 0} днів · +{Math.min((dailyStatus?.streak ?? 0) * 30, 300)}₵</p>
             </div>
             <Button onClick={() => claimDaily.mutate()} disabled={!dailyStatus?.canClaim || claimDaily.isPending} size="sm"
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-40 rounded-xl text-xs font-bold h-8">
-              {dailyStatus?.canClaim ? "Забрати!" : `${dailyStatus?.hoursRemaining ?? 0}г`}
+              {dailyStatus?.canClaim ? "🎁 Забрати!" : `⏱ ${dailyStatus?.hoursRemaining ?? 0}г`}
             </Button>
           </Card>
 

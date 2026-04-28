@@ -4,14 +4,15 @@ import { trpc } from "@/providers/trpc";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useNavigate } from "react-router";
-import { ArrowLeft, TrendingUp, Zap, Star, Filter, RefreshCw } from "lucide-react";
+import { ArrowLeft, TrendingUp, Zap, Star, RefreshCw } from "lucide-react";
+import { toast } from "@/components/Toast";
 
 const GRADE_COLORS: Record<string, { card: string; badge: string; dot: string }> = {
-  Stock:   { card: "bg-[#12121a] border-slate-700/50",  badge: "bg-slate-700 text-slate-300",    dot: "bg-slate-400" },
-  Refined: { card: "bg-[#0d1520] border-blue-700/40",   badge: "bg-blue-900/50 text-blue-300",   dot: "bg-blue-400" },
-  Rare:    { card: "bg-[#130d20] border-purple-700/40", badge: "bg-purple-900/50 text-purple-300", dot: "bg-purple-400" },
-  Exotic:  { card: "bg-[#1a0d18] border-pink-700/40",   badge: "bg-pink-900/50 text-pink-300",   dot: "bg-pink-400" },
-  Legacy:  { card: "bg-[#1a1200] border-amber-600/50",  badge: "bg-amber-900/50 text-amber-300", dot: "bg-amber-400" },
+  Stock:   { card: "bg-[#12121a] border-slate-700/50",  badge: "bg-slate-700 text-slate-300",     dot: "bg-slate-400" },
+  Refined: { card: "bg-[#0d1520] border-blue-700/40",   badge: "bg-blue-900/50 text-blue-300",    dot: "bg-blue-400" },
+  Rare:    { card: "bg-[#130d20] border-purple-700/40", badge: "bg-purple-900/50 text-purple-300",dot: "bg-purple-400" },
+  Exotic:  { card: "bg-[#1a0d18] border-pink-700/40",   badge: "bg-pink-900/50 text-pink-300",    dot: "bg-pink-400" },
+  Legacy:  { card: "bg-[#1a1200] border-amber-600/50",  badge: "bg-amber-900/50 text-amber-300",  dot: "bg-amber-400" },
 };
 
 const GRADE_EMOJI: Record<string, string> = {
@@ -19,27 +20,36 @@ const GRADE_EMOJI: Record<string, string> = {
 };
 
 export default function Market() {
-  const { isAuthenticated, user } = useTelegramAuth();
+  const { isAuthenticated } = useTelegramAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"listings" | "mylistings">("listings");
   const [gradeFilter, setGradeFilter] = useState<string | null>(null);
   const [currency, setCurrency] = useState<"all" | "coins" | "stars">("all");
+
+  // Get profile to know our DB user id (NOT telegram id)
+  const { data: profile } = trpc.game.getProfile.useQuery(undefined, { enabled: isAuthenticated });
+  const myUserId = profile?.user?.id;
 
   const { data: listings, isLoading, refetch } = trpc.market.getListings.useQuery(undefined, {
     enabled: isAuthenticated,
   });
 
   const buyItem = trpc.market.buyItem.useMutation({
-    onSuccess: () => { refetch(); alert("✅ Куплено!"); },
-    onError: (err) => alert("❌ " + err.message),
+    onSuccess: () => { refetch(); toast.success("✅ Куплено!", "Предмет вже у тебе в інвентарі"); },
+    onError: (err) => toast.error("❌ Помилка", err.message),
+  });
+
+  const removeListing = trpc.market.removeListing.useMutation({
+    onSuccess: () => { refetch(); toast.success("✅ Знято з продажу"); },
+    onError: (err) => toast.error("❌ Помилка", err.message),
   });
 
   let displayed = listings ?? [];
   if (gradeFilter) displayed = displayed.filter((l: any) => l.item?.template?.grade === gradeFilter);
   if (currency !== "all") displayed = displayed.filter((l: any) => l.currency === currency);
 
-  const myListings = displayed.filter((l: any) => l.sellerId === (user as any)?.id);
-  const otherListings = displayed.filter((l: any) => l.sellerId !== (user as any)?.id);
+  const myListings = myUserId ? displayed.filter((l: any) => Number(l.sellerId) === Number(myUserId)) : [];
+  const otherListings = myUserId ? displayed.filter((l: any) => Number(l.sellerId) !== Number(myUserId)) : displayed;
   const showListings = activeTab === "mylistings" ? myListings : otherListings;
 
   return (
@@ -51,7 +61,7 @@ export default function Market() {
         </Button>
         <div>
           <h1 className="font-bold text-base">Маркетплейс</h1>
-          <p className="text-xs text-slate-500">{listings?.length ?? 0} лотів</p>
+          <p className="text-xs text-slate-500">{listings?.length ?? 0} активних лотів</p>
         </div>
         <button onClick={() => refetch()} className="ml-auto text-slate-400 hover:text-white p-2">
           <RefreshCw className="w-4 h-4" />
@@ -63,13 +73,13 @@ export default function Market() {
         <div className="bg-[#12121a] border border-[#1e1e2e] rounded-2xl p-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-yellow-400" />
-            <span className="text-yellow-400 font-bold">{(user as any)?.coins?.toLocaleString() ?? 0}</span>
+            <span className="text-yellow-400 font-bold">{(profile?.user?.coins ?? 0).toLocaleString()}</span>
             <span className="text-slate-500 text-xs">монет</span>
           </div>
           <div className="w-px h-4 bg-[#1e1e2e]" />
           <div className="flex items-center gap-2">
             <Star className="w-4 h-4 text-purple-400" />
-            <span className="text-purple-400 font-bold">{(user as any)?.stars ?? 0}</span>
+            <span className="text-purple-400 font-bold">{profile?.user?.stars ?? 0}</span>
             <span className="text-slate-500 text-xs">stars</span>
           </div>
           <Button onClick={() => navigate("/inventory")} size="sm"
@@ -84,14 +94,13 @@ export default function Market() {
         {(["listings", "mylistings"] as const).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all ${activeTab === tab ? "bg-purple-600 text-white" : "bg-[#12121a] text-slate-400"}`}>
-            {tab === "listings" ? `🛒 Всі лоти (${otherListings.length})` : `📦 Мої (${myListings.length})`}
+            {tab === "listings" ? `🛒 Всі лоти (${otherListings.length})` : `📦 Мої лоти (${myListings.length})`}
           </button>
         ))}
       </div>
 
       {/* Filters */}
       <div className="px-4 mb-3 space-y-2">
-        {/* Grade filter */}
         <div className="flex gap-1.5 overflow-x-auto pb-1">
           <button onClick={() => setGradeFilter(null)}
             className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-semibold ${!gradeFilter ? "bg-purple-600 text-white" : "bg-[#12121a] text-slate-400"}`}>
@@ -104,7 +113,6 @@ export default function Market() {
             </button>
           ))}
         </div>
-        {/* Currency filter */}
         <div className="flex gap-1.5">
           {(["all", "coins", "stars"] as const).map(c => (
             <button key={c} onClick={() => setCurrency(c)}
@@ -125,10 +133,10 @@ export default function Market() {
           <div className="text-center py-16">
             <p className="text-4xl mb-3">🏪</p>
             <p className="text-slate-400 font-semibold">
-              {activeTab === "mylistings" ? "У тебе немає активних лотів" : "Поки немає лотів"}
+              {activeTab === "mylistings" ? "У тебе немає активних лотів" : "Поки немає лотів від інших"}
             </p>
             <p className="text-slate-600 text-sm mt-1">
-              {activeTab === "mylistings" ? "Відкрий інвентар і виставь предмет" : "Будь першим трейдером!"}
+              {activeTab === "mylistings" ? "Виставь свій предмет з інвентаря" : "Будь першим трейдером!"}
             </p>
             <Button onClick={() => navigate("/inventory")} className="mt-4 bg-purple-600 hover:bg-purple-700 rounded-xl">
               Виставити предмет
@@ -139,7 +147,7 @@ export default function Market() {
             {showListings.map((listing: any) => {
               const grade = listing.item?.template?.grade ?? "Stock";
               const colors = GRADE_COLORS[grade] ?? GRADE_COLORS.Stock;
-              const isOwn = listing.sellerId === (user as any)?.id;
+              const isOwn = Number(listing.sellerId) === Number(myUserId);
 
               return (
                 <Card key={listing.id} className={`${colors.card} border p-3`}>
@@ -155,7 +163,6 @@ export default function Market() {
                       <div className="flex gap-2 text-[10px] text-slate-500">
                         <span>Float {listing.item?.floatVal?.toFixed(2)}</span>
                         <span>#{listing.item?.serialNum}</span>
-                        <span>Seed {listing.item?.patternSeed}</span>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
@@ -176,7 +183,13 @@ export default function Market() {
                           Купити
                         </Button>
                       ) : (
-                        <span className="text-[10px] text-slate-500 bg-[#1e1e2e] px-2 py-0.5 rounded-lg">Мій</span>
+                        <Button size="sm" onClick={() => {
+                          if (!confirm("Зняти лот з продажу?")) return;
+                          removeListing.mutate({ listingId: listing.id });
+                        }} disabled={removeListing.isPending}
+                          className="text-[10px] h-6 px-2 bg-slate-700 hover:bg-slate-600 rounded-lg">
+                          Зняти
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -187,7 +200,6 @@ export default function Market() {
         )}
       </div>
 
-      {/* Coming soon banner */}
       <div className="px-4 mt-6">
         <Card className="bg-gradient-to-r from-purple-900/20 to-pink-900/20 border-purple-500/20 p-4 text-center">
           <TrendingUp className="w-6 h-6 text-purple-400 mx-auto mb-2" />

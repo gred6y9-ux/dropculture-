@@ -8,24 +8,24 @@ import { ArrowLeft, Zap, Star, Clock } from "lucide-react";
 import { toast } from "@/components/Toast";
 
 const FREE_SECTORS = [
-  { label: "50₵",      emoji: "💰", color: "#312e81", weight: 35 },
-  { label: "Stock",    emoji: "⚫", color: "#1e293b", weight: 8  },
-  { label: "100₵",     emoji: "💰", color: "#4c1d95", weight: 25 },
-  { label: "Refined",  emoji: "🔵", color: "#1e3a5f", weight: 5  },
-  { label: "250₵",     emoji: "💰", color: "#6b21a8", weight: 15 },
-  { label: "500₵",     emoji: "💰", color: "#7e22ce", weight: 5  },
-  { label: "1000₵",   emoji: "🎰", color: "#78350f", weight: 1.5 },
-  { label: "Rare",     emoji: "🟣", color: "#3b0764", weight: 0.5 },
+  { label: "50",      emoji: "💰", color: "#312e81", weight: 35 },
+  { label: "100",     emoji: "💰", color: "#4c1d95", weight: 25 },
+  { label: "250",     emoji: "💰", color: "#6b21a8", weight: 15 },
+  { label: "500",     emoji: "💰", color: "#7e22ce", weight: 10 },
+  { label: "Stock",   emoji: "⚫", color: "#1e293b", weight: 8  },
+  { label: "Refined", emoji: "🔵", color: "#1e3a5f", weight: 5  },
+  { label: "1000",    emoji: "🎰", color: "#78350f", weight: 1.5 },
+  { label: "Rare",    emoji: "🟣", color: "#3b0764", weight: 0.5 },
 ];
 
 const VIP_SECTORS = [
-  { label: "500₵",    emoji: "💰", color: "#064e3b", weight: 20 },
+  { label: "500",     emoji: "💰", color: "#064e3b", weight: 20 },
   { label: "Rare",    emoji: "🟣", color: "#3b0764", weight: 20 },
-  { label: "1000₵",  emoji: "💰", color: "#78350f", weight: 15 },
+  { label: "1000",    emoji: "💰", color: "#78350f", weight: 15 },
   { label: "Exotic",  emoji: "🌸", color: "#831843", weight: 15 },
-  { label: "2000₵",  emoji: "🎰", color: "#92400e", weight: 10 },
+  { label: "2000",    emoji: "🎰", color: "#92400e", weight: 10 },
   { label: "Refined", emoji: "🔵", color: "#1e3a5f", weight: 10 },
-  { label: "5 Stars", emoji: "⭐", color: "#7c2d12", weight: 8  },
+  { label: "5⭐",     emoji: "⭐", color: "#7c2d12", weight: 8  },
   { label: "Legacy",  emoji: "👑", color: "#713f12", weight: 2  },
 ];
 
@@ -66,34 +66,38 @@ function WheelCanvas({ sectors, spinning, onEnd }: { sectors: Sector[]; spinning
       ctx.fillStyle = s.color;
       ctx.fill();
       // Divider
-      ctx.strokeStyle = "rgba(0,0,0,0.5)";
+      ctx.strokeStyle = "rgba(0,0,0,0.6)";
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      // Label (emoji + text) — horizontal, positioned along sector mid-radius
+      // Skip text if sector too thin (< 8 degrees)
+      if (span < 0.14) {
+        angle += span;
+        return;
+      }
+
+      // Position label horizontally near outer edge
       const mid = angle + span / 2;
-      const labelR = R * 0.62;
+      const labelR = R * 0.7;
       const lx = cx + labelR * Math.cos(mid);
       const ly = cy + labelR * Math.sin(mid);
 
       ctx.save();
       ctx.translate(lx, ly);
-
-      // Always keep text readable — rotate so text reads from center outward
-      // Add 90° so text goes around the wheel perpendicular to radius
+      // Rotate so text is tangent to circle (perpendicular to radius)
       ctx.rotate(mid + Math.PI / 2);
 
-      // Emoji
-      ctx.font = "13px Arial";
+      // Emoji on top
+      ctx.font = "12px Arial";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(s.emoji, 0, -9);
+      ctx.fillText(s.emoji, 0, -8);
 
-      // Label
+      // Label below
       ctx.font = "bold 9px Arial";
       ctx.fillStyle = "#ffffff";
-      ctx.shadowColor = "rgba(0,0,0,0.8)";
-      ctx.shadowBlur = 3;
+      ctx.shadowColor = "rgba(0,0,0,0.9)";
+      ctx.shadowBlur = 4;
       ctx.fillText(s.label, 0, 4);
 
       ctx.restore();
@@ -103,7 +107,7 @@ function WheelCanvas({ sectors, spinning, onEnd }: { sectors: Sector[]; spinning
     // Outer ring
     ctx.beginPath();
     ctx.arc(cx, cy, R, 0, Math.PI * 2);
-    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.strokeStyle = "rgba(255,255,255,0.15)";
     ctx.lineWidth = 2;
     ctx.stroke();
 
@@ -147,8 +151,6 @@ function WheelCanvas({ sectors, spinning, onEnd }: { sectors: Sector[]; spinning
       else {
         activeRef.current = false;
         const sectorTotal = sectors.reduce((s, x) => s + x.weight, 0);
-        // Pointer at top (angle = -PI/2 from center)
-        // Our rotation start is at -PI/2, so final angle relative to top:
         const finalRot = ((rotRef.current % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
         let cum = 0, idx = 0;
         for (let i = 0; i < sectors.length; i++) {
@@ -231,7 +233,6 @@ export default function WheelPage() {
       </div>
 
       <div className="px-4">
-        {/* Tabs */}
         <div className="flex gap-2 mb-4">
           <button onClick={() => setTab("free")}
             className={`flex-1 py-2.5 rounded-2xl text-sm font-bold transition-all ${tab === "free" ? "bg-purple-600 text-white shadow-lg shadow-purple-500/20" : "bg-[#12121a] text-slate-400"}`}>
@@ -240,11 +241,9 @@ export default function WheelPage() {
           <button onClick={() => setTab("vip")}
             className={`flex-1 py-2.5 rounded-2xl text-sm font-bold transition-all relative ${tab === "vip" ? "bg-gradient-to-r from-amber-500 to-yellow-500 text-black" : "bg-[#12121a] text-slate-400"}`}>
             👑 VIP Stars
-            <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">NEW</span>
           </button>
         </div>
 
-        {/* VIP info */}
         {tab === "vip" && (
           <Card className="bg-gradient-to-r from-amber-900/40 to-yellow-900/40 border border-amber-500/30 rounded-2xl p-3 mb-4 flex items-center gap-3">
             <Star className="w-5 h-5 text-amber-400 flex-shrink-0" />
@@ -255,7 +254,6 @@ export default function WheelPage() {
           </Card>
         )}
 
-        {/* Cooldown */}
         {tab === "free" && !wheelStatus?.canSpin && (
           <Card className="bg-[#1a1a28] border-[#2a2a3e] rounded-2xl p-3 mb-4 flex items-center gap-3">
             <Clock className="w-5 h-5 text-purple-400" />
@@ -266,7 +264,6 @@ export default function WheelPage() {
           </Card>
         )}
 
-        {/* Result */}
         {result && !spinning && (
           <div className="bg-gradient-to-r from-green-900/40 to-emerald-900/40 border border-green-500/30 rounded-2xl p-3 mb-4 text-center">
             <p className="text-2xl mb-1">{result.emoji}</p>
@@ -274,12 +271,10 @@ export default function WheelPage() {
           </div>
         )}
 
-        {/* Wheel */}
         <div className="flex justify-center mb-4">
           <WheelCanvas sectors={sectors} spinning={spinning} onEnd={handleEnd} />
         </div>
 
-        {/* Spin button */}
         <Button onClick={handleSpin} disabled={spinning || (!canSpin && tab === "free")}
           className={`w-full h-14 text-base font-bold rounded-2xl mb-6 ${
             spinning ? "bg-purple-900 text-purple-300 cursor-wait" :
@@ -293,7 +288,6 @@ export default function WheelPage() {
            `⏱ Через ${wheelStatus?.hoursRemaining ?? "..."}г`}
         </Button>
 
-        {/* Prizes grid */}
         <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Можливі нагороди</p>
         <div className="grid grid-cols-2 gap-1.5">
           {sectors.map((s, i) => (
@@ -303,7 +297,10 @@ export default function WheelPage() {
                 {s.emoji}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-white font-semibold">{s.label}</p>
+                <p className="text-xs text-white font-semibold">
+                  {s.label === "Stock" || s.label === "Refined" || s.label === "Rare" || s.label === "Exotic" || s.label === "Legacy"
+                    ? s.label : s.label.includes("⭐") ? s.label : `${s.label} монет`}
+                </p>
                 <p className="text-[9px] text-slate-500">{s.weight}% шанс</p>
               </div>
             </div>

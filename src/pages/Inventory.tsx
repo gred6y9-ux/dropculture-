@@ -4,14 +4,14 @@ import { trpc } from "@/providers/trpc";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useNavigate } from "react-router";
-import { ArrowLeft, Zap, Search, SortAsc } from "lucide-react";
+import { ArrowLeft, Zap, Search, SortAsc, ShoppingBag } from "lucide-react";
 
-const GRADE_COLORS: Record<string, { card: string; badge: string; text: string; dot: string }> = {
-  Stock:   { card: "bg-[#12121a] border-slate-700/50",  badge: "bg-slate-700 text-slate-300",   text: "text-slate-300",   dot: "bg-slate-500" },
-  Refined: { card: "bg-[#0d1520] border-blue-700/40",   badge: "bg-blue-900/50 text-blue-300",  text: "text-blue-300",   dot: "bg-blue-500" },
-  Rare:    { card: "bg-[#130d20] border-purple-700/40", badge: "bg-purple-900/50 text-purple-300", text: "text-purple-300", dot: "bg-purple-500" },
-  Exotic:  { card: "bg-[#1a0d18] border-pink-700/40",   badge: "bg-pink-900/50 text-pink-300",  text: "text-pink-300",   dot: "bg-pink-500" },
-  Legacy:  { card: "bg-[#1a1200] border-amber-600/50",  badge: "bg-amber-900/50 text-amber-300", text: "text-amber-300",  dot: "bg-amber-500" },
+const GRADE_COLORS: Record<string, { card: string; text: string; dot: string }> = {
+  Stock:   { card: "bg-[#12121a] border-slate-700/50",  text: "text-slate-300",   dot: "bg-slate-500" },
+  Refined: { card: "bg-[#0d1520] border-blue-700/40",   text: "text-blue-300",    dot: "bg-blue-500" },
+  Rare:    { card: "bg-[#130d20] border-purple-700/40", text: "text-purple-300",  dot: "bg-purple-500" },
+  Exotic:  { card: "bg-[#1a0d18] border-pink-700/40",   text: "text-pink-300",    dot: "bg-pink-500" },
+  Legacy:  { card: "bg-[#1a1200] border-amber-600/50",  text: "text-amber-300",   dot: "bg-amber-500" },
 };
 
 const GRADE_EMOJI: Record<string, string> = {
@@ -137,15 +137,24 @@ export default function Inventory() {
               const colors = GRADE_COLORS[grade] ?? GRADE_COLORS.Stock;
               return (
                 <Card key={item.id} onClick={() => navigate(`/item/${item.id}`)}
-                  className={`${colors.card} border p-2.5 cursor-pointer hover:scale-105 active:scale-95 transition-all duration-150`}>
+                  className={`${colors.card} border p-2.5 cursor-pointer hover:scale-105 active:scale-95 transition-all duration-150 relative`}>
+                  {/* Listed badge */}
+                  {item.isListed && (
+                    <div className="absolute top-1 right-1 bg-purple-600 rounded-md px-1 py-0.5 z-10 flex items-center gap-0.5">
+                      <ShoppingBag className="w-2 h-2 text-white" />
+                      <span className="text-[7px] text-white font-bold">SELL</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-lg">{GRADE_EMOJI[grade]}</span>
                     <div className={`${colors.dot} w-1.5 h-1.5 rounded-full`} />
                   </div>
-                  <p className="text-xs font-bold text-white leading-tight mb-1 line-clamp-2">{item.template?.name}</p>
+                  <p className="text-xs font-bold text-white leading-tight mb-0.5 line-clamp-1">{item.template?.name}</p>
+                  {/* Serial number — make duplicates distinct */}
+                  <p className="text-[8px] text-slate-500 mb-0.5">#{item.serialNum?.toString().padStart(4, "0")}</p>
                   <p className={`text-[9px] font-semibold ${colors.text} mb-1`}>{grade}</p>
                   <div className="flex items-center justify-between">
-                    <p className="text-[8px] text-slate-500">Float {item.floatVal?.toFixed(2)}</p>
+                    <p className="text-[8px] text-slate-500">F {item.floatVal?.toFixed(2)}</p>
                     <p className="text-[9px] text-yellow-400 font-bold">{(item.marketPrice ?? 0).toLocaleString()}</p>
                   </div>
                 </Card>
