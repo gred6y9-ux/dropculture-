@@ -6,6 +6,7 @@ import Market from './pages/Market'
 import ItemDetail from './pages/ItemDetail'
 import WheelPage from './pages/WheelPage'
 import BattlePass from './pages/BattlePass'
+import Transactions from './pages/Transactions'
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
       <Route path="/item/:id" element={<ItemDetail />} />
       <Route path="/wheel" element={<WheelPage />} />
       <Route path="/battle-pass" element={<BattlePass />} />
+      <Route path="/transactions" element={<Transactions />} />
     </Routes>
   )
 }
