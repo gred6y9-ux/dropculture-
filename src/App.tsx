@@ -7,6 +7,7 @@ import ItemDetail from './pages/ItemDetail'
 import WheelPage from './pages/WheelPage'
 import BattlePass from './pages/BattlePass'
 import Transactions from './pages/Transactions'
+import TradeUp from './pages/TradeUp'
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
       <Route path="/wheel" element={<WheelPage />} />
       <Route path="/battle-pass" element={<BattlePass />} />
       <Route path="/transactions" element={<Transactions />} />
+      <Route path="/trade-up" element={<TradeUp />} />
     </Routes>
   )
 }
