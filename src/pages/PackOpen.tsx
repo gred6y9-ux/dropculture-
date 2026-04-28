@@ -322,6 +322,8 @@ export default function PackOpen() {
 
   const handleOpen = () => {
     if (!pack) return;
+    // Double-click guard: prevent if already opening or pending
+    if (phase !== "idle" || openPack.isPending) return;
     if (pack.cur === "stars") { toast.info("Незабаром!", "Stars платежі в розробці"); return; }
     if (coins < pack.cost) { toast.error("Мало монет", `Потрібно ${pack.cost.toLocaleString()}₵`); return; }
     const tg = (window as any).Telegram?.WebApp;
@@ -445,9 +447,10 @@ export default function PackOpen() {
           <div className="flex gap-3 w-full max-w-xs">
             <Button variant="outline" onClick={reset} className="flex-1 border-[#2a2a3e] text-slate-400 rounded-2xl">← Назад</Button>
             <Button onClick={handleOpen}
-              className="flex-1 h-12 font-bold text-white rounded-2xl hover:opacity-90"
+              disabled={openPack.isPending || phase !== "idle"}
+              className="flex-1 h-12 font-bold text-white rounded-2xl hover:opacity-90 disabled:opacity-50 disabled:cursor-wait"
               style={{ background: `linear-gradient(135deg, ${pack.gradient[0]}, ${pack.gradient[pack.gradient.length - 1]})` }}>
-              Відкрити!
+              {openPack.isPending ? "Відкривається..." : "Відкрити!"}
             </Button>
           </div>
         </div>

@@ -33,6 +33,7 @@ export default function Inventory() {
   const [filter, setFilter] = useState<string | null>(null);
   const [sort, setSort] = useState("newest");
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<"active" | "listed" | "all">("active");
 
   const { data: items, isLoading } = trpc.game.getInventory.useQuery({}, {
     enabled: isAuthenticated, retry: false,
@@ -47,6 +48,9 @@ export default function Inventory() {
   const totalValue = items?.reduce((s, i) => s + ((i as any).marketPrice ?? 0), 0) ?? 0;
 
   let displayed = [...(items ?? [])];
+  // View filter: hide listed items by default
+  if (view === "active") displayed = displayed.filter(i => !(i as any).isListed);
+  else if (view === "listed") displayed = displayed.filter(i => (i as any).isListed);
   if (filter) displayed = displayed.filter(i => (i as any).template?.grade === filter);
   if (search) displayed = displayed.filter(i => (i as any).template?.name?.toLowerCase().includes(search.toLowerCase()));
   if (sort === "value_desc") displayed.sort((a, b) => ((b as any).marketPrice ?? 0) - ((a as any).marketPrice ?? 0));
@@ -79,6 +83,33 @@ export default function Inventory() {
             placeholder="Пошук предмета..."
             className="w-full bg-[#12121a] border border-[#1e1e2e] rounded-xl py-2 pl-9 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/50"
           />
+        </div>
+      </div>
+
+      {/* View tabs: Active / Listed / All */}
+      <div className="px-4 mb-3">
+        <div className="flex gap-1.5">
+          {(() => {
+            const activeCount = items?.filter(i => !(i as any).isListed).length ?? 0;
+            const listedCount = items?.filter(i => (i as any).isListed).length ?? 0;
+            const totalCount = items?.length ?? 0;
+            return (
+              <>
+                <button onClick={() => setView("active")}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${view === "active" ? "bg-purple-600 text-white" : "bg-[#12121a] text-slate-400"}`}>
+                  📦 Активні ({activeCount})
+                </button>
+                <button onClick={() => setView("listed")}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${view === "listed" ? "bg-purple-600 text-white" : "bg-[#12121a] text-slate-400"}`}>
+                  🛒 На маркеті ({listedCount})
+                </button>
+                <button onClick={() => setView("all")}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${view === "all" ? "bg-purple-600 text-white" : "bg-[#12121a] text-slate-400"}`}>
+                  Всі ({totalCount})
+                </button>
+              </>
+            );
+          })()}
         </div>
       </div>
 

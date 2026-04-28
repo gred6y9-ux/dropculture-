@@ -140,19 +140,54 @@ export default function ItemDetail() {
             ) : (
               <Card className="bg-[#12121a] border-purple-500/30 p-4 rounded-2xl space-y-3">
                 <p className="font-bold text-white text-sm">💰 Ціна в монетах</p>
-                <input type="number" value={sellPrice} onChange={e => setSellPrice(e.target.value)}
-                  placeholder={`Рекомендовано: ${(item as any).marketPrice?.toLocaleString()}`}
-                  className="w-full bg-[#0a0a0f] border border-[#2a2a3e] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500" />
-                {sellPrice && (
-                  <p className="text-xs text-slate-400">
-                    Ти отримаєш <span className="text-yellow-400 font-bold">{Math.floor(Number(sellPrice) * 0.95).toLocaleString()}</span> монет після комісії 5%
-                  </p>
-                )}
+                {(() => {
+                  const marketPrice = (item as any).marketPrice ?? 0;
+                  const minPrice = Math.floor(marketPrice * 0.5);
+                  const maxPrice = Math.floor(marketPrice * 1.5);
+                  return (
+                    <>
+                      <input type="number" value={sellPrice} onChange={e => setSellPrice(e.target.value)}
+                        placeholder={`${minPrice.toLocaleString()} - ${maxPrice.toLocaleString()}`}
+                        className="w-full bg-[#0a0a0f] border border-[#2a2a3e] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500" />
+                      <div className="flex gap-1.5">
+                        <button onClick={() => setSellPrice(String(minPrice))}
+                          className="flex-1 text-[10px] bg-[#1a1a28] hover:bg-[#2a2a3e] py-1.5 rounded-lg text-slate-400 transition">
+                          Мін {minPrice.toLocaleString()}
+                        </button>
+                        <button onClick={() => setSellPrice(String(marketPrice))}
+                          className="flex-1 text-[10px] bg-purple-600/20 hover:bg-purple-600/30 py-1.5 rounded-lg text-purple-300 transition">
+                          Ринок {marketPrice.toLocaleString()}
+                        </button>
+                        <button onClick={() => setSellPrice(String(maxPrice))}
+                          className="flex-1 text-[10px] bg-[#1a1a28] hover:bg-[#2a2a3e] py-1.5 rounded-lg text-slate-400 transition">
+                          Макс {maxPrice.toLocaleString()}
+                        </button>
+                      </div>
+                      {sellPrice && (() => {
+                        const p = Number(sellPrice);
+                        const tooLow = p < minPrice;
+                        const tooHigh = p > maxPrice;
+                        if (tooLow) return <p className="text-xs text-red-400">⚠ Мінімум {minPrice.toLocaleString()}₵ (50% ринку)</p>;
+                        if (tooHigh) return <p className="text-xs text-red-400">⚠ Максимум {maxPrice.toLocaleString()}₵ (150% ринку)</p>;
+                        return (
+                          <p className="text-xs text-slate-400">
+                            Ти отримаєш <span className="text-yellow-400 font-bold">{Math.floor(p * 0.95).toLocaleString()}</span> монет після комісії 5%
+                          </p>
+                        );
+                      })()}
+                    </>
+                  );
+                })()}
                 <div className="grid grid-cols-2 gap-2">
                   <Button variant="outline" onClick={() => { setShowSellForm(false); setSellPrice(""); }}
                     className="border-[#2a2a3e] text-slate-400 rounded-xl">Скасувати</Button>
                   <Button onClick={() => {
                     if (!sellPrice || Number(sellPrice) < 1) { toast.error("Введи ціну"); return; }
+                    const marketPrice = (item as any).marketPrice ?? 0;
+                    const minPrice = Math.floor(marketPrice * 0.5);
+                    const maxPrice = Math.floor(marketPrice * 1.5);
+                    if (Number(sellPrice) < minPrice) { toast.error("Ціна занадто низька", `Мінімум ${minPrice.toLocaleString()}₵`); return; }
+                    if (Number(sellPrice) > maxPrice) { toast.error("Ціна занадто висока", `Максимум ${maxPrice.toLocaleString()}₵`); return; }
                     listItem.mutate({ itemId: Number(id), price: Number(sellPrice), currency: "coins" });
                   }} disabled={listItem.isPending} className="bg-purple-600 hover:bg-purple-700 rounded-xl font-bold">
                     {listItem.isPending ? "..." : "Виставити"}

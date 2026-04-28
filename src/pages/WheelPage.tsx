@@ -196,7 +196,7 @@ export default function WheelPage() {
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<{ label: string; emoji: string } | null>(null);
 
-  const { data: wheelStatus, refetch: refetchWheel } = trpc.wheel.status.useQuery(undefined, { enabled: isAuthenticated });
+  const { data: wheelStatus, isLoading: wheelLoading, refetch: refetchWheel } = trpc.wheel.status.useQuery(undefined, { enabled: isAuthenticated });
   const { data: profile, refetch: refetchProfile } = trpc.game.getProfile.useQuery(undefined, { enabled: isAuthenticated });
 
   const spinMut = trpc.wheel.spin.useMutation({
@@ -206,7 +206,8 @@ export default function WheelPage() {
 
   const handleSpin = () => {
     if (tab === "vip") { toast.info("Незабаром!", "VIP колесо за Stars в розробці"); return; }
-    if (!wheelStatus?.canSpin || spinning) return;
+    // Guard: prevent if already spinning, mutation pending, or no permission
+    if (!wheelStatus?.canSpin || spinning || spinMut.isPending) return;
     setSpinning(true);
     setResult(null);
     spinMut.mutate();
@@ -215,6 +216,16 @@ export default function WheelPage() {
   const handleEnd = () => setSpinning(false);
   const sectors = tab === "vip" ? VIP_SECTORS : FREE_SECTORS;
   const canSpin = tab === "free" && (wheelStatus?.canSpin ?? false);
+
+  // Loading state — prevent crash when wheelStatus is undefined
+  if (wheelLoading || !isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center">
+        <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-3" />
+        <p className="text-slate-400 text-sm">Завантаження колеса...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white pb-8">
