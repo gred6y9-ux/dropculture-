@@ -7,6 +7,7 @@ import { updateUser, findUserById } from "./queries/users";
 import { verifyTelegramSessionToken } from "./telegram-session";
 import { getDb } from "./queries/connection";
 import { sql } from "drizzle-orm";
+import { sendBotNotification } from "./lib/telegram-notify";
 
 async function getUser(headers: Headers) {
   const auth = headers.get("authorization");
@@ -131,6 +132,21 @@ export const marketRouter = createRouter({
         VALUES (${listing.itemId}, ${listing.sellerId}, ${user.id}, ${listing.price}, ${listing.currency}, ${fee})
       `);
 
+      // Notify seller via bot (fire and forget — don't block response)
+      if (seller.telegramId) {
+        const itemName = (await getUserItemById(listing.itemId) as any)?.template?.name ?? "предмет";
+        const buyerName = user.firstName ?? user.username ?? "Гравець";
+        const currencyIcon = listing.currency === "coins" ? "💰" : "⭐";
+        const currencyLabel = listing.currency === "coins" ? "монет" : "Stars";
+        sendBotNotification(seller.telegramId,
+          `🎉 <b>Твій предмет продано!</b>\n\n` +
+          `📦 <b>${itemName}</b>\n` +
+          `💵 ${sellerAmount.toLocaleString()} ${currencyIcon} ${currencyLabel} (комісія ${fee})\n` +
+          `👤 Покупець: ${buyerName}\n\n` +
+          `Подивитись історію угод 👉 /transactions`
+        ).catch(() => {});
+      }
+
       return { success: true, itemId: listing.itemId, coinsSpent: listing.price, fee };
     }),
 
@@ -170,6 +186,36 @@ export const marketRouter = createRouter({
       otherUser: Number(r.seller_id) === Number(user.id)
         ? (r.buyer_first_name ?? r.buyer_username ?? "Гравець")
         : (r.seller_first_name ?? r.seller_username ?? "Гравець"),
+      createdAt: r.created_at,
+    }));
+  }),
+
+  // ── Recent sales (live feed for marketplace) ─────────────────
+  getRecentSales: publicQuery.query(async () => {
+    const db = getDb();
+    const result = await db.execute(sql`
+      SELECT
+        t.id, t.price, t.currency, t.created_at,
+        it.name as item_name, it.grade as item_grade,
+        seller.username as seller_username, seller.first_name as seller_first_name,
+        buyer.username as buyer_username, buyer.first_name as buyer_first_name
+      FROM transactions t
+      LEFT JOIN user_items ut ON ut.id = t.item_id
+      LEFT JOIN item_templates it ON it.id = ut.template_id
+      LEFT JOIN users seller ON seller.id = t.seller_id
+      LEFT JOIN users buyer ON buyer.id = t.buyer_id
+      ORDER BY t.created_at DESC
+      LIMIT 15
+    `);
+    const rows = (result[0] as any[]) ?? [];
+    return rows.map(r => ({
+      id: r.id,
+      itemName: r.item_name ?? "Предмет",
+      itemGrade: r.item_grade ?? "Stock",
+      price: r.price,
+      currency: r.currency,
+      sellerName: r.seller_first_name ?? r.seller_username ?? "Гравець",
+      buyerName: r.buyer_first_name ?? r.buyer_username ?? "Гравець",
       createdAt: r.created_at,
     }));
   }),

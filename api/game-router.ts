@@ -324,6 +324,60 @@ export const gameRouter = createRouter({
       stats: { totalItems: items.length, totalValue, legacyCount },
     };
   }),
+
+  // ── Get collections progress (which templates user owns) ─────
+  getCollectionsProgress: publicQuery.query(async ({ ctx }) => {
+    const user = await getUser(ctx.req.headers);
+    if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+    const db = getDb();
+    // Get all unique template IDs the user owns
+    const ownedRes = await db.execute(sql`
+      SELECT DISTINCT template_id FROM user_items WHERE user_id = ${user.id}
+    `);
+    const ownedTemplateIds = new Set<number>(((ownedRes[0] as any[]) ?? []).map((r: any) => Number(r.template_id)));
+
+    // Get all collections + their templates
+    const collectionsRes = await db.execute(sql`
+      SELECT
+        c.id as collection_id, c.name as collection_name, c.description as collection_description,
+        c.is_active,
+        it.id as template_id, it.name as template_name, it.grade as template_grade
+      FROM collections c
+      LEFT JOIN item_templates it ON it.collection_id = c.id
+      ORDER BY c.id, it.id
+    `);
+
+    const collections = new Map<number, any>();
+    for (const r of ((collectionsRes[0] as any[]) ?? [])) {
+      const cid = Number(r.collection_id);
+      if (!collections.has(cid)) {
+        collections.set(cid, {
+          id: cid,
+          name: r.collection_name,
+          description: r.collection_description,
+          isActive: !!r.is_active,
+          templates: [],
+          ownedCount: 0,
+          totalCount: 0,
+        });
+      }
+      if (r.template_id) {
+        const c = collections.get(cid)!;
+        const owned = ownedTemplateIds.has(Number(r.template_id));
+        c.templates.push({
+          id: Number(r.template_id),
+          name: r.template_name,
+          grade: r.template_grade,
+          owned,
+        });
+        c.totalCount++;
+        if (owned) c.ownedCount++;
+      }
+    }
+
+    return Array.from(collections.values());
+  }),
 });
 // export PACK_CONFIGS already done above
 
