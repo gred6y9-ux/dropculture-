@@ -37,6 +37,21 @@ export const marketRouter = createRouter({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Вже на маркеті" });
       }
 
+      // Price guardrails: ±50% from market price for coins
+      if (input.currency === "coins") {
+        const marketPrice = item.marketPrice ?? 0;
+        if (marketPrice > 0) {
+          const minPrice = Math.floor(marketPrice * 0.5);
+          const maxPrice = Math.floor(marketPrice * 1.5);
+          if (input.price < minPrice) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `Мінімум: ${minPrice.toLocaleString()}₵ (50% від ринку)` });
+          }
+          if (input.price > maxPrice) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `Максимум: ${maxPrice.toLocaleString()}₵ (150% від ринку)` });
+          }
+        }
+      }
+
       // Mark item as listed
       await updateUserItem(input.itemId, { isListed: true, marketPrice: input.price });
 
