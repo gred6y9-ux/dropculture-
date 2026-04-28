@@ -194,18 +194,33 @@ export default function Home() {
           <ChevronRight className="w-4 h-4 text-slate-600" />
         </Card>
 
-        {/* Transactions */}
-        <Card onClick={() => navigate("/transactions")}
-          className="bg-gradient-to-r from-[#0f1a0a] to-[#12121a] border-green-500/20 rounded-2xl p-4 cursor-pointer active:scale-95 transition-all hover:border-green-500/30 flex items-center gap-3">
-          <div className="w-10 h-10 bg-green-500/20 rounded-xl flex items-center justify-center">
-            <Receipt className="w-5 h-5 text-green-400" />
-          </div>
-          <div className="flex-1">
-            <p className="font-bold text-white text-sm">Мої угоди</p>
-            <p className="text-xs text-slate-500">Історія продажів і покупок</p>
-          </div>
-          <ChevronRight className="w-4 h-4 text-slate-600" />
-        </Card>
+        {/* Trade-Up + Collections row */}
+        <div className="grid grid-cols-2 gap-2">
+          <Card onClick={() => navigate("/trade-up")}
+            className="bg-gradient-to-br from-[#1a0f0a] to-[#12121a] border-orange-500/20 rounded-2xl p-3 cursor-pointer active:scale-95 transition-all hover:border-orange-500/30 flex items-center gap-2.5">
+            <div className="w-9 h-9 bg-orange-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Flame className="w-4 h-4 text-orange-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-white text-xs">Trade-Up</p>
+              <p className="text-[10px] text-slate-500">5 → 1 вищого</p>
+            </div>
+          </Card>
+
+          <Card onClick={() => navigate("/transactions")}
+            className="bg-gradient-to-br from-[#0f1a0a] to-[#12121a] border-green-500/20 rounded-2xl p-3 cursor-pointer active:scale-95 transition-all hover:border-green-500/30 flex items-center gap-2.5">
+            <div className="w-9 h-9 bg-green-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Receipt className="w-4 h-4 text-green-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-white text-xs">Угоди</p>
+              <p className="text-[10px] text-slate-500">Історія</p>
+            </div>
+          </Card>
+        </div>
+
+        {/* Collections progress */}
+        <CollectionsProgress />
 
         {/* Trending */}
         <div>
@@ -253,6 +268,79 @@ export default function Home() {
             </button>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Collections Progress Component ──────────────────────────────
+function CollectionsProgress() {
+  const navigate = useNavigate();
+  const { data: collections } = trpc.game.getCollectionsProgress.useQuery(undefined, { retry: false });
+  const active = (collections ?? []).filter((c: any) => c.totalCount > 0);
+
+  if (active.length === 0) return null;
+
+  const GRADE_EMOJI: Record<string, string> = {
+    Stock: "⚫", Refined: "🔵", Rare: "🟣", Exotic: "🌸", Legacy: "👑",
+  };
+
+  return (
+    <div>
+      <h3 className="font-bold text-white mb-3 flex items-center gap-2 text-sm">
+        🎯 Колекції
+      </h3>
+      <div className="space-y-2">
+        {active.map((c: any) => {
+          const pct = c.totalCount > 0 ? (c.ownedCount / c.totalCount) * 100 : 0;
+          const isComplete = c.ownedCount === c.totalCount;
+          // Find missing items preview
+          const missing = (c.templates ?? []).filter((t: any) => !t.owned).slice(0, 5);
+          return (
+            <Card key={c.id}
+              onClick={() => navigate("/inventory")}
+              className={`bg-[#12121a] border-[#1e1e2e] p-3 rounded-2xl cursor-pointer active:scale-95 transition-all ${
+                isComplete ? "border-amber-500/40" : "hover:border-purple-500/30"
+              }`}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-white text-sm truncate flex items-center gap-1">
+                    {c.name}
+                    {isComplete && <span className="text-amber-400">✨</span>}
+                  </p>
+                  <p className="text-[10px] text-slate-500 truncate">{c.description}</p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className={`text-sm font-bold ${isComplete ? "text-amber-400" : "text-white"}`}>
+                    {c.ownedCount}/{c.totalCount}
+                  </p>
+                  <p className="text-[9px] text-slate-500">{pct.toFixed(0)}%</p>
+                </div>
+              </div>
+              {/* Progress bar */}
+              <div className="h-1.5 bg-[#1e1e2e] rounded-full overflow-hidden mb-2">
+                <div className={`h-full rounded-full transition-all ${
+                  isComplete ? "bg-gradient-to-r from-amber-400 to-yellow-500" :
+                  "bg-gradient-to-r from-purple-500 to-pink-500"
+                }`} style={{ width: `${pct}%` }} />
+              </div>
+              {/* Missing items preview */}
+              {!isComplete && missing.length > 0 && (
+                <div className="flex items-center gap-1 mt-1">
+                  <span className="text-[9px] text-slate-500">Шукай:</span>
+                  {missing.map((m: any, i: number) => (
+                    <span key={i} className="text-[9px] text-slate-400" title={m.name}>
+                      {GRADE_EMOJI[m.grade] ?? "•"}
+                    </span>
+                  ))}
+                  {c.totalCount - c.ownedCount > 5 && (
+                    <span className="text-[9px] text-slate-600">+{c.totalCount - c.ownedCount - 5}</span>
+                  )}
+                </div>
+              )}
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

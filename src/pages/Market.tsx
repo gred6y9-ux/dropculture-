@@ -200,13 +200,72 @@ export default function Market() {
         )}
       </div>
 
+      {/* Live sales feed */}
       <div className="px-4 mt-6">
-        <Card className="bg-gradient-to-r from-purple-900/20 to-pink-900/20 border-purple-500/20 p-4 text-center">
-          <TrendingUp className="w-6 h-6 text-purple-400 mx-auto mb-2" />
-          <p className="text-white font-bold text-sm">P2P Stars торгівля — незабаром</p>
-          <p className="text-slate-500 text-xs mt-1">Продавай Legacy предмети за реальні Stars</p>
-        </Card>
+        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          Останні продажі
+        </p>
+        <LiveFeed />
       </div>
+    </div>
+  );
+}
+
+function timeAgoShort(dateStr: string | Date): string {
+  const date = typeof dateStr === "string" ? new Date(dateStr) : dateStr;
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 60) return "щойно";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}хв`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}г`;
+  return `${Math.floor(seconds / 86400)}д`;
+}
+
+function LiveFeed() {
+  const { data: sales, refetch } = trpc.market.getRecentSales.useQuery(undefined, {
+    refetchInterval: 30000, // refresh every 30s
+  });
+
+  if (!sales || sales.length === 0) {
+    return (
+      <Card className="bg-[#12121a] border-[#1e1e2e] p-4 text-center rounded-2xl">
+        <p className="text-slate-500 text-sm">Поки тихо... будь першим!</p>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {sales.slice(0, 10).map((s: any) => {
+        const grade = s.itemGrade ?? "Stock";
+        const gradeColor: Record<string, string> = {
+          Stock: "text-slate-400", Refined: "text-blue-400", Rare: "text-purple-400",
+          Exotic: "text-pink-400", Legacy: "text-amber-400",
+        };
+        const gradeEmoji: Record<string, string> = {
+          Stock: "⚫", Refined: "🔵", Rare: "🟣", Exotic: "🌸", Legacy: "👑",
+        };
+        return (
+          <div key={s.id} className="bg-[#12121a] border border-[#1e1e2e] rounded-xl p-2.5 flex items-center gap-2.5">
+            <span className="text-lg flex-shrink-0">{gradeEmoji[grade]}</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-white truncate">
+                <span className="text-slate-400">{s.buyerName}</span>
+                <span className="text-slate-600 mx-1">→</span>
+                <span className="font-semibold">{s.itemName}</span>
+              </p>
+              <div className="flex items-center gap-2 text-[10px]">
+                <span className={`font-bold ${gradeColor[grade]}`}>{grade}</span>
+                <span className="text-slate-600">від {s.sellerName}</span>
+              </div>
+            </div>
+            <div className="text-right flex-shrink-0">
+              <p className="text-yellow-400 font-bold text-xs">{s.price.toLocaleString()}₵</p>
+              <p className="text-[9px] text-slate-600">{timeAgoShort(s.createdAt)}</p>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
