@@ -9,6 +9,16 @@ import { getDb } from "./queries/connection";
 import { sql } from "drizzle-orm";
 import { sendBotNotification } from "./lib/telegram-notify";
 import { trackEvent } from "./lib/analytics";
+import { checkRateLimit } from "./lib/rate-limiter";
+
+function assertNotBanned(user: any) {
+  if (user?.banned) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: `Аккаунт заблокований. ${user.banReason ?? ""}`.trim(),
+    });
+  }
+}
 
 async function getUser(headers: Headers) {
   const auth = headers.get("authorization");
@@ -30,6 +40,8 @@ export const marketRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       const user = await getUser(ctx.req.headers);
       if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+      assertNotBanned(user);
+      checkRateLimit(user.id, "listItems");
 
       const item = await getUserItemById(input.itemId);
       if (!item || item.userId !== user.id) {
@@ -85,6 +97,8 @@ export const marketRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       const user = await getUser(ctx.req.headers);
       if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+      assertNotBanned(user);
+      checkRateLimit(user.id, "removeListing");
 
       const listing = await getListingById(input.listingId);
       if (!listing || listing.soldAt) throw new TRPCError({ code: "NOT_FOUND" });
@@ -107,6 +121,8 @@ export const marketRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       const user = await getUser(ctx.req.headers);
       if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+      assertNotBanned(user);
+      checkRateLimit(user.id, "buyItem");
 
       const listing = await getListingById(input.listingId);
       if (!listing || listing.soldAt) throw new TRPCError({ code: "NOT_FOUND", message: "Лот не знайдено або вже продано" });

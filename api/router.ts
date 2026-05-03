@@ -5,6 +5,7 @@ import { seedRouter } from "./seed-router";
 import { wheelRouter } from "./wheel-router";
 import { adminRouter } from "./admin-router";
 import { referralRouter } from "./referral-router";
+import { paymentsRouter } from "./payments-router";
 import { createRouter, publicQuery } from "./middleware";
 
 export const appRouter = createRouter({
@@ -16,6 +17,7 @@ export const appRouter = createRouter({
   wheel: wheelRouter,
   admin: adminRouter,
   referral: referralRouter,
+  payments: paymentsRouter,
 });
 
 export type AppRouter = typeof appRouter;

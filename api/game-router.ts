@@ -12,6 +12,17 @@ import { sql } from "drizzle-orm";
 import * as schema from "@db/schema";
 import { trackEvent } from "./lib/analytics";
 import { trackError } from "./lib/error-tracker";
+import { checkRateLimit } from "./lib/rate-limiter";
+
+// Helper: assert user is not banned
+function assertNotBanned(user: any) {
+  if (user?.banned) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: `Аккаунт заблокований. ${user.banReason ?? ""}`.trim(),
+    });
+  }
+}
 
 // ── Pack configurations ──────────────────────────────────────────
 export const PACK_CONFIGS = {
@@ -143,15 +154,28 @@ export const gameRouter = createRouter({
   // ── Open pack (coins only) ────────────────────────────────────
   openPack: publicQuery
     .input(z.object({
-      packType: z.enum(["flowers", "planets", "starter", "standard", "premium", "elite"]),
+      packType: z.enum(["flowers", "planets", "starter", "standard", "premium", "elite", "vip", "legendary", "mythic"]),
     }))
     .mutation(async ({ ctx, input }) => {
       const user = await getUser(ctx.req.headers);
       if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+      assertNotBanned(user);
+      checkRateLimit(user.id, "openPack");
 
       const config = PACK_CONFIGS[input.packType];
-      if (user.coins < config.cost) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `Потрібно ${config.cost} монет. У тебе ${user.coins}.` });
+
+      // Check balance based on currency
+      if (config.currency === "coins") {
+        if (user.coins < config.cost) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `Потрібно ${config.cost} монет. У тебе ${user.coins}.` });
+        }
+      } else if (config.currency === "stars") {
+        if (user.stars < config.cost) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Потрібно ${config.cost} ⭐ Stars. У тебе ${user.stars}. Купи Stars в магазині.`,
+          });
+        }
       }
 
       // Check inventory slots
@@ -164,7 +188,11 @@ export const gameRouter = createRouter({
       }
 
       // Deduct FIRST before generating (prevent double-spend)
-      await updateUser(user.id, { coins: user.coins - config.cost });
+      if (config.currency === "coins") {
+        await updateUser(user.id, { coins: user.coins - config.cost });
+      } else {
+        await updateUser(user.id, { stars: user.stars - config.cost });
+      }
 
       const items = await generateItems(user.id, config.grades as any, config.items);
       await createPackOpen({ userId: user.id, packType: "daily", itemsCount: items.length });
@@ -193,6 +221,8 @@ export const gameRouter = createRouter({
   getDailyPack: publicQuery.mutation(async ({ ctx }) => {
     const user = await getUser(ctx.req.headers);
     if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+    assertNotBanned(user);
+    checkRateLimit(user.id, "getDailyPack");
 
     // Check inventory slots first
     const slotInfo = await getInventorySlotInfo(user.id);
@@ -341,6 +371,8 @@ export const gameRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       const user = await getUser(ctx.req.headers);
       if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+      assertNotBanned(user);
+      checkRateLimit(user.id, "burnItems");
 
       // Verify all items belong to user
       const items = await Promise.all(input.itemIds.map(id => getUserItemById(id)));
@@ -472,6 +504,8 @@ export const gameRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       const user = await getUser(ctx.req.headers);
       if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+      assertNotBanned(user);
+      checkRateLimit(user.id, "buyInventorySlots");
 
       // Pricing tiers — gets more expensive per slot the more you have
       const PACKS = {

@@ -6,6 +6,8 @@ import { findUserById, findUserByTelegramId } from "./queries/users";
 import { TRPCError } from "@trpc/server";
 import { trackEvent } from "./lib/analytics";
 import { trackError } from "./lib/error-tracker";
+import { validateTelegramInitData } from "./lib/telegram-validator";
+import { checkRateLimit } from "./lib/rate-limiter";
 
 function parseInitData(initData: string): Record<string, string> {
   const params = new URLSearchParams(initData);
@@ -45,9 +47,35 @@ export const telegramAuthRouter = createRouter({
           });
         }
 
+        // Rate limit by telegram ID first (before any DB operations)
+        checkRateLimit(`tg:${userData.id}`, "login");
+
+        // Validate Telegram InitData signature (cryptographic check)
+        const validation = validateTelegramInitData(input.initData);
+        if (!validation.valid) {
+          trackError({
+            source: "api",
+            endpoint: "telegramAuth.login",
+            error: `InitData validation failed: ${validation.reason}`,
+            telegramId: Number(userData.id),
+          });
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: `Invalid Telegram credentials: ${validation.reason}`,
+          });
+        }
+
         const telegramId = Number(userData.id);
         const existingUser = await findUserByTelegramId(telegramId);
         const isNewUser = !existingUser;
+
+        // Check if user is banned
+        if (existingUser && (existingUser as any).banned) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `Аккаунт заблокований. ${(existingUser as any).banReason ?? ""}`.trim(),
+          });
+        }
 
         const user = await upsertTelegramUser({
           telegramId,

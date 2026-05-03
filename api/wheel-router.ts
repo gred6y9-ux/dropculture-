@@ -6,6 +6,7 @@ import { sql } from "drizzle-orm";
 import { updateUser, findUserById } from "./queries/users";
 import { getTemplatesByGrade, createUserItem } from "./queries/items";
 import { verifyTelegramSessionToken } from "./telegram-session";
+import { checkRateLimit } from "./lib/rate-limiter";
 
 async function getUserFromHeader(headers: Headers) {
   const auth = headers.get("authorization");
@@ -41,11 +42,23 @@ const WHEEL_SECTORS = [
   { id: 8, label: "Rare 🟣",       type: "item",  value: "Rare",   weight: 0.5, color: "#a855f7" },
 ];
 
-function spinWheel() {
-  const total = WHEEL_SECTORS.reduce((s, x) => s + x.weight, 0);
+const VIP_WHEEL_SECTORS = [
+  { id: 11, label: "500 монет",    type: "coins", value: 500,      weight: 20,  color: "#10b981" },
+  { id: 12, label: "Rare 🟣",       type: "item",  value: "Rare",   weight: 20,  color: "#a855f7" },
+  { id: 13, label: "1000 монет",   type: "coins", value: 1000,     weight: 15,  color: "#f59e0b" },
+  { id: 14, label: "Exotic 🌸",    type: "item",  value: "Exotic", weight: 15,  color: "#ec4899" },
+  { id: 15, label: "2000 монет",   type: "coins", value: 2000,     weight: 10,  color: "#eab308" },
+  { id: 16, label: "Refined",      type: "item",  value: "Refined",weight: 10,  color: "#3b82f6" },
+  { id: 17, label: "5 Stars ⭐",   type: "stars", value: 5,        weight: 8,   color: "#f97316" },
+  { id: 18, label: "Legacy 👑",    type: "item",  value: "Legacy", weight: 2,   color: "#facc15" },
+];
+
+function spinWheel(isVip: boolean = false) {
+  const sectors = isVip ? VIP_WHEEL_SECTORS : WHEEL_SECTORS;
+  const total = sectors.reduce((s, x) => s + x.weight, 0);
   let rand = Math.random() * total;
-  for (const s of WHEEL_SECTORS) { rand -= s.weight; if (rand <= 0) return s; }
-  return WHEEL_SECTORS[0];
+  for (const s of sectors) { rand -= s.weight; if (rand <= 0) return s; }
+  return sectors[0];
 }
 
 export const wheelRouter = createRouter({
@@ -74,33 +87,55 @@ export const wheelRouter = createRouter({
     }
   }),
 
-  spin: publicQuery.mutation(async ({ ctx }) => {
+  spin: publicQuery
+    .input(z.object({ isVip: z.boolean().default(false) }).optional())
+    .mutation(async ({ ctx, input }) => {
     const user = await getUserFromHeader(ctx.req.headers);
     if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+    if ((user as any).banned) throw new TRPCError({ code: "FORBIDDEN", message: "Аккаунт заблокований" });
+    checkRateLimit(user.id, "wheel.spin");
+
+    const isVip = input?.isVip ?? false;
+    const VIP_COST_STARS = 10;
 
     await ensureTable();
     const db = getDb();
 
-    const result = await db.execute(
-      sql`SELECT last_spin_at FROM wheel_spins WHERE user_id = ${user.id} ORDER BY last_spin_at DESC LIMIT 1`
-    );
-    const rows = result[0] as any[];
-    const lastSpin = rows?.[0]?.last_spin_at;
+    if (isVip) {
+      // VIP wheel: cost 10 Stars, no cooldown, better rewards
+      if (user.stars < VIP_COST_STARS) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Потрібно ${VIP_COST_STARS} ⭐ Stars. У тебе ${user.stars}.`,
+        });
+      }
+      await updateUser(user.id, { stars: user.stars - VIP_COST_STARS });
+    } else {
+      // Free wheel: cooldown 12h
+      const result = await db.execute(
+        sql`SELECT last_spin_at FROM wheel_spins WHERE user_id = ${user.id} AND is_vip = 0 ORDER BY last_spin_at DESC LIMIT 1`
+      );
+      const rows = result[0] as any[];
+      const lastSpin = rows?.[0]?.last_spin_at;
 
-    if (lastSpin) {
-      const hoursSince = (Date.now() - new Date(lastSpin).getTime()) / (1000 * 60 * 60);
-      if (hoursSince < 12) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `Зачекай ще ${Math.ceil(12 - hoursSince)} год` });
+      if (lastSpin) {
+        const hoursSince = (Date.now() - new Date(lastSpin).getTime()) / (1000 * 60 * 60);
+        if (hoursSince < 12) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `Зачекай ще ${Math.ceil(12 - hoursSince)} год` });
+        }
       }
     }
 
-    const sector = spinWheel();
+    const sector = spinWheel(isVip);
     let rewardDescription = "";
     let itemWon = null;
 
     if (sector.type === "coins") {
       await updateUser(user.id, { coins: user.coins + (sector.value as number) });
       rewardDescription = `+${sector.value} монет`;
+    } else if (sector.type === "stars") {
+      await updateUser(user.id, { stars: (user.stars - (isVip ? VIP_COST_STARS : 0)) + (sector.value as number) });
+      rewardDescription = `+${sector.value} Stars`;
     } else {
       const grade = sector.value as string;
       const templates = await getTemplatesByGrade(grade as any);
@@ -119,10 +154,15 @@ export const wheelRouter = createRouter({
       }
     }
 
+    // Add is_vip column if needed
+    try {
+      await db.execute(sql`ALTER TABLE wheel_spins ADD COLUMN is_vip TINYINT(1) NOT NULL DEFAULT 0`);
+    } catch { /* exists */ }
+
     await db.execute(
-      sql`INSERT INTO wheel_spins (user_id, sector_id, reward_type, reward_value) VALUES (${user.id}, ${sector.id}, ${sector.type}, ${String(sector.value)})`
+      sql`INSERT INTO wheel_spins (user_id, sector_id, reward_type, reward_value, is_vip) VALUES (${user.id}, ${sector.id}, ${sector.type}, ${String(sector.value)}, ${isVip ? 1 : 0})`
     );
 
-    return { sector, rewardDescription, itemWon };
+    return { sector, rewardDescription, itemWon, isVip };
   }),
 });
