@@ -29,6 +29,7 @@ export const users = mysqlTable(
     coins: int("coins").default(500).notNull(),
     stars: int("stars").default(0).notNull(),
     streakDays: int("streak_days").default(0).notNull(),
+    inventorySlots: int("inventory_slots").default(100).notNull(),
     lastClaimAt: timestamp("last_claim_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
