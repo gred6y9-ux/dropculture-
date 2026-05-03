@@ -10,6 +10,8 @@ import { verifyTelegramSessionToken } from "./telegram-session";
 import { getDb } from "./queries/connection";
 import { sql } from "drizzle-orm";
 import * as schema from "@db/schema";
+import { trackEvent } from "./lib/analytics";
+import { trackError } from "./lib/error-tracker";
 
 // ── Pack configurations ──────────────────────────────────────────
 export const PACK_CONFIGS = {
@@ -166,6 +168,24 @@ export const gameRouter = createRouter({
 
       const items = await generateItems(user.id, config.grades as any, config.items);
       await createPackOpen({ userId: user.id, packType: "daily", itemsCount: items.length });
+
+      // Analytics
+      const totalValue = items.reduce((s, i) => s + ((i as any)?.marketPrice ?? 0), 0);
+      const hasLegacy = items.some((i: any) => i?.template?.grade === "Legacy");
+      trackEvent({
+        event: "pack_opened",
+        userId: user.id,
+        telegramId: user.telegramId ?? undefined,
+        properties: {
+          packType: input.packType,
+          cost: config.cost,
+          itemsReceived: items.length,
+          totalValue,
+          hasLegacy,
+          coinsBalance: user.coins - config.cost,
+        },
+      });
+
       return { items, packName: config.name, coinsSpent: config.cost };
     }),
 

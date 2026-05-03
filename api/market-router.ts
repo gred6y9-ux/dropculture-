@@ -8,6 +8,7 @@ import { verifyTelegramSessionToken } from "./telegram-session";
 import { getDb } from "./queries/connection";
 import { sql } from "drizzle-orm";
 import { sendBotNotification } from "./lib/telegram-notify";
+import { trackEvent } from "./lib/analytics";
 
 async function getUser(headers: Headers) {
   const auth = headers.get("authorization");
@@ -61,6 +62,18 @@ export const marketRouter = createRouter({
         sellerId: user.id,
         price: input.price,
         currency: input.currency,
+      });
+
+      trackEvent({
+        event: "item_listed",
+        userId: user.id,
+        telegramId: user.telegramId ?? undefined,
+        properties: {
+          itemId: input.itemId,
+          price: input.price,
+          currency: input.currency,
+          marketPrice: item.marketPrice,
+        },
       });
 
       return { success: true, listingId: listing?.id };
@@ -146,6 +159,35 @@ export const marketRouter = createRouter({
           `Подивитись історію угод 👉 /transactions`
         ).catch(() => {});
       }
+
+      // Analytics
+      trackEvent({
+        event: "item_bought",
+        userId: user.id,
+        telegramId: user.telegramId ?? undefined,
+        properties: {
+          listingId: listing.id,
+          itemId: listing.itemId,
+          price: listing.price,
+          currency: listing.currency,
+          fee,
+          sellerId: listing.sellerId,
+        },
+      });
+      trackEvent({
+        event: "item_sold",
+        userId: listing.sellerId,
+        telegramId: seller.telegramId ?? undefined,
+        properties: {
+          listingId: listing.id,
+          itemId: listing.itemId,
+          price: listing.price,
+          received: sellerAmount,
+          currency: listing.currency,
+          fee,
+          buyerId: user.id,
+        },
+      });
 
       return { success: true, itemId: listing.itemId, coinsSpent: listing.price, fee };
     }),

@@ -2,8 +2,10 @@ import { z } from "zod";
 import { createRouter, publicQuery } from "./middleware";
 import { upsertTelegramUser } from "./queries/users";
 import { createTelegramSessionToken, verifyTelegramSessionToken } from "./telegram-session";
-import { findUserById } from "./queries/users";
+import { findUserById, findUserByTelegramId } from "./queries/users";
 import { TRPCError } from "@trpc/server";
+import { trackEvent } from "./lib/analytics";
+import { trackError } from "./lib/error-tracker";
 
 function parseInitData(initData: string): Record<string, string> {
   const params = new URLSearchParams(initData);
@@ -25,6 +27,11 @@ function getUserFromInitData(initData: string) {
   }
 }
 
+function getStartParam(initData: string): string | null {
+  const data = parseInitData(initData);
+  return data.start_param ?? null;
+}
+
 export const telegramAuthRouter = createRouter({
   login: publicQuery
     .input(z.object({ initData: z.string().min(1) }))
@@ -39,6 +46,9 @@ export const telegramAuthRouter = createRouter({
         }
 
         const telegramId = Number(userData.id);
+        const existingUser = await findUserByTelegramId(telegramId);
+        const isNewUser = !existingUser;
+
         const user = await upsertTelegramUser({
           telegramId,
           username: userData.username || null,
@@ -53,6 +63,17 @@ export const telegramAuthRouter = createRouter({
             message: "Failed to create user",
           });
         }
+
+        // Analytics
+        trackEvent({
+          event: isNewUser ? "user_registered" : "user_login",
+          userId: user.id,
+          telegramId: user.telegramId ?? undefined,
+          properties: {
+            username: user.username,
+            firstName: user.firstName,
+          },
+        });
 
         const token = await createTelegramSessionToken(user.id);
 
@@ -77,6 +98,14 @@ export const telegramAuthRouter = createRouter({
         const errStack = err?.stack ?? "";
         console.error("[telegramAuth.login] FAILED:", errMsg);
         console.error("[telegramAuth.login] STACK:", errStack);
+
+        // Track to DB for admin to see
+        trackError({
+          source: "api",
+          endpoint: "telegramAuth.login",
+          error: err,
+        });
+
         // Re-throw with detailed message so it shows in HTTP response
         if (err instanceof TRPCError) throw err;
         throw new TRPCError({

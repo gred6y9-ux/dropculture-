@@ -3,6 +3,8 @@ import { gameRouter } from "./game-router";
 import { marketRouter } from "./market-router";
 import { seedRouter } from "./seed-router";
 import { wheelRouter } from "./wheel-router";
+import { adminRouter } from "./admin-router";
+import { referralRouter } from "./referral-router";
 import { createRouter, publicQuery } from "./middleware";
 
 export const appRouter = createRouter({
@@ -12,6 +14,8 @@ export const appRouter = createRouter({
   market: marketRouter,
   seed: seedRouter,
   wheel: wheelRouter,
+  admin: adminRouter,
+  referral: referralRouter,
 });
 
 export type AppRouter = typeof appRouter;
