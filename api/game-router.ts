@@ -80,34 +80,38 @@ let columnEnsured = false;
 async function ensureInventorySlotsColumn() {
   if (columnEnsured) return;
   const db = getDb();
+  // Try multiple approaches — never throw
   try {
-    await db.execute(sql`
-      ALTER TABLE users
-      ADD COLUMN IF NOT EXISTS inventory_slots INT NOT NULL DEFAULT 100
-    `);
-    columnEnsured = true;
-  } catch {
-    // MySQL < 8.0 doesn't support IF NOT EXISTS — try without
-    try {
-      await db.execute(sql`ALTER TABLE users ADD COLUMN inventory_slots INT NOT NULL DEFAULT 100`);
-    } catch { /* column already exists */ }
-    columnEnsured = true;
+    await db.execute(sql`ALTER TABLE users ADD COLUMN inventory_slots INT NOT NULL DEFAULT 100`);
+  } catch (err: any) {
+    // Column already exists — that's fine
+    const msg = String(err?.message ?? err);
+    if (!msg.includes("Duplicate") && !msg.includes("already exists") && !msg.includes("1060")) {
+      console.error("[migrate] inventory_slots add failed (non-critical):", msg);
+    }
   }
+  columnEnsured = true;
 }
 
-// Get used vs available slots for user
+// Get used vs available slots for user — NEVER throws
 async function getInventorySlotInfo(userId: number) {
-  await ensureInventorySlotsColumn();
-  const db = getDb();
-  const result = await db.execute(sql`
-    SELECT
-      (SELECT COUNT(*) FROM user_items WHERE user_id = ${userId}) as used,
-      (SELECT inventory_slots FROM users WHERE id = ${userId}) as total
-  `);
-  const row = (result[0] as any[])?.[0];
-  const used = Number(row?.used ?? 0);
-  const total = Number(row?.total ?? 100);
-  return { used, total, free: Math.max(0, total - used) };
+  try {
+    await ensureInventorySlotsColumn();
+    const db = getDb();
+    const result = await db.execute(sql`
+      SELECT
+        (SELECT COUNT(*) FROM user_items WHERE user_id = ${userId}) as used,
+        COALESCE((SELECT inventory_slots FROM users WHERE id = ${userId}), 100) as total
+    `);
+    const row = (result[0] as any[])?.[0];
+    const used = Number(row?.used ?? 0);
+    const total = Number(row?.total ?? 100);
+    return { used, total, free: Math.max(0, total - used) };
+  } catch (err) {
+    console.error("[getInventorySlotInfo] failed, using defaults:", err);
+    // Safe fallback — never break the app
+    return { used: 0, total: 100, free: 100 };
+  }
 }
 
 async function generateItems(userId: number, grades: Record<string, number>, count: number) {
