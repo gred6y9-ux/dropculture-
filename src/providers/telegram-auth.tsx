@@ -47,6 +47,8 @@ export function TelegramAuthProvider({ children }: { children: ReactNode }) {
     enabled: !!token,
   });
 
+  const applyReferralMutation = trpc.referral.applyReferral.useMutation();
+
   const login = async () => {
     const tg = (window as any).Telegram?.WebApp;
     if (!tg) {
@@ -60,6 +62,19 @@ export function TelegramAuthProvider({ children }: { children: ReactNode }) {
     }
     await loginMutation.mutateAsync({ initData });
     await refetch();
+
+    // Apply referral if start_param exists (e.g. ?startapp=ref_123)
+    const startParam = tg.initDataUnsafe?.start_param;
+    if (startParam && startParam.startsWith("ref_")) {
+      try {
+        const result = await applyReferralMutation.mutateAsync({ refCode: startParam });
+        if (result.applied) {
+          console.log(`[referral] Applied ref code ${startParam}, +${result.bonus}₵ welcome bonus`);
+        }
+      } catch (err) {
+        console.warn("[referral] failed:", err);
+      }
+    }
   };
 
   const logout = () => {
