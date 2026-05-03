@@ -10,6 +10,7 @@ import Transactions from './pages/Transactions'
 import TradeUp from './pages/TradeUp'
 import Admin from './pages/Admin'
 import Referral from './pages/Referral'
+import StarsShop from './pages/StarsShop'
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
       <Route path="/trade-up" element={<TradeUp />} />
       <Route path="/admin" element={<Admin />} />
       <Route path="/referral" element={<Referral />} />
+      <Route path="/shop" element={<StarsShop />} />
     </Routes>
   )
 }
