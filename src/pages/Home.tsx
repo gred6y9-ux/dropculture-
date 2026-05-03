@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { trpc } from "@/providers/trpc";
 import { useNavigate } from "react-router";
-import { Package, Backpack, Store, Sparkles, TrendingUp, Zap, Star, Gift, Flame, ChevronRight, RotateCcw, Receipt } from "lucide-react";
+import { Package, Backpack, Store, Sparkles, TrendingUp, Zap, Star, Gift, Flame, ChevronRight, RotateCcw, Receipt, Shield } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "@/components/Toast";
 
@@ -21,6 +21,7 @@ export default function Home() {
   const { data: profile, refetch: refetchProfile } = trpc.game.getProfile.useQuery(undefined, { enabled: isAuthenticated, retry: false });
   const { data: dailyStatus, refetch: refetchDaily } = trpc.game.checkDailyStatus.useQuery(undefined, { enabled: isAuthenticated, retry: false });
   const { data: wheelStatus } = trpc.wheel.status.useQuery(undefined, { enabled: isAuthenticated, retry: false });
+  const { data: adminStatus } = trpc.admin.whoami.useQuery(undefined, { enabled: isAuthenticated, retry: false });
 
   const claimDaily = trpc.game.getDailyPack.useMutation({
     onSuccess: (data) => {
@@ -69,7 +70,15 @@ export default function Home() {
               {displayUser?.firstName?.[0] ?? displayUser?.username?.[0] ?? "?"}
             </div>
             <div>
-              <p className="font-bold text-white text-sm">{displayUser?.firstName ?? displayUser?.username ?? "Гравець"}</p>
+              <p className="font-bold text-white text-sm flex items-center gap-1.5">
+                {displayUser?.firstName ?? displayUser?.username ?? "Гравець"}
+                {adminStatus?.isAdmin && (
+                  <button onClick={() => navigate("/admin")}
+                    className="bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 rounded-md p-0.5 transition" title="Admin">
+                    <Shield className="w-3 h-3" />
+                  </button>
+                )}
+              </p>
               <p className="text-xs text-slate-500">@{displayUser?.username ?? "..."}</p>
             </div>
           </div>
@@ -218,6 +227,19 @@ export default function Home() {
             </div>
           </Card>
         </div>
+
+        {/* Referral CTA */}
+        <Card onClick={() => navigate("/referral")}
+          className="bg-gradient-to-r from-purple-900/40 to-pink-900/40 border-purple-500/30 rounded-2xl p-4 cursor-pointer active:scale-95 transition-all hover:border-purple-500/50 flex items-center gap-3">
+          <div className="w-10 h-10 bg-purple-500/30 rounded-xl flex items-center justify-center text-xl">
+            🎁
+          </div>
+          <div className="flex-1">
+            <p className="font-bold text-white text-sm">Запроси друга — отримай 500₵</p>
+            <p className="text-xs text-slate-400">Друг отримує 200₵ + 1% від його покупок назавжди</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-slate-600" />
+        </Card>
 
         {/* Collections progress */}
         <CollectionsProgress />
