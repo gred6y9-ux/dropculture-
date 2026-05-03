@@ -212,12 +212,17 @@ export default function WheelPage() {
   });
 
   const handleSpin = () => {
-    if (tab === "vip") { toast.info("Незабаром!", "VIP колесо за Stars в розробці"); return; }
-    // Guard: prevent if already spinning, mutation pending, or no permission
-    if (!wheelStatus?.canSpin || spinning || spinMut.isPending) return;
+    const isVip = tab === "vip";
+    if (isVip && (profile?.user?.stars ?? 0) < 10) {
+      toast.error("Мало Stars", "Купи Stars в магазині (10⭐ за спін)");
+      navigate("/shop");
+      return;
+    }
+    if (!isVip && (!wheelStatus?.canSpin)) return;
+    if (spinning || spinMut.isPending) return;
     setSpinning(true);
     setResult(null);
-    spinMut.mutate();
+    spinMut.mutate({ isVip });
   };
 
   const handleEnd = () => setSpinning(false);
@@ -301,7 +306,7 @@ export default function WheelPage() {
             "bg-[#1a1a28] text-slate-500 cursor-not-allowed"
           }`}>
           {spinning ? "🎡 Крутиться..." :
-           tab === "vip" ? "⭐ 10 Stars — Незабаром" :
+           tab === "vip" ? `⭐ 10 Stars — Крутити VIP` :
            canSpin ? "🎡 Крутити!" :
            `⏱ Через ${wheelStatus?.hoursRemaining ?? "..."}г`}
         </Button>

@@ -87,10 +87,12 @@ export default function Home() {
               <Zap className="w-3.5 h-3.5 text-yellow-400" />
               <span className="text-yellow-400 font-bold text-sm">{(displayUser?.coins ?? 0).toLocaleString()}</span>
             </div>
-            <div className="bg-[#1a1a28] rounded-xl px-3 py-2 flex items-center gap-1.5">
+            <button onClick={() => navigate("/shop")}
+              className="bg-[#1a1a28] hover:bg-[#252535] rounded-xl px-3 py-2 flex items-center gap-1.5 transition-all">
               <Star className="w-3.5 h-3.5 text-purple-400" />
               <span className="text-purple-400 font-bold text-sm">{displayUser?.stars ?? 0}</span>
-            </div>
+              <span className="text-purple-400 font-bold text-base ml-0.5 leading-none">+</span>
+            </button>
           </div>
         </div>
       </div>

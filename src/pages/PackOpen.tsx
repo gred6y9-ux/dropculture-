@@ -324,7 +324,13 @@ export default function PackOpen() {
     if (!pack) return;
     // Double-click guard: prevent if already opening or pending
     if (phase !== "idle" || openPack.isPending) return;
-    if (pack.cur === "stars") { toast.info("Незабаром!", "Stars платежі в розробці"); return; }
+    if (pack.cur === "stars") {
+      // Redirect to shop for Stars purchase
+      const productId = `pack_${pack.id}`;
+      toast.info("Перехід в магазин", `Купи ${pack.name} за Stars`);
+      navigate(`/shop`);
+      return;
+    }
     if (coins < pack.cost) { toast.error("Мало монет", `Потрібно ${pack.cost.toLocaleString()}₵`); return; }
     const tg = (window as any).Telegram?.WebApp;
     if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred("heavy");
@@ -420,7 +426,7 @@ export default function PackOpen() {
           <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">⭐ VIP Stars</p>
           <div className="space-y-2">
             {PACKS.filter(p => p.cur === "stars").map(p => (
-              <button key={p.id} onClick={() => toast.info("Незабаром!", "Stars платежі в розробці")}
+              <button key={p.id} onClick={() => navigate("/shop")}
                 className="w-full bg-[#12121a] border border-[#1e1e2e] rounded-2xl p-3 flex items-center gap-3 hover:border-amber-500/30 active:scale-95 transition-all opacity-80">
                 <span className="text-2xl">{p.pattern}</span>
                 <div className="flex-1"><p className="text-white font-bold text-sm">{p.name}</p></div>
