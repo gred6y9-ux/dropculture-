@@ -75,6 +75,41 @@ async function getUser(headers: Headers) {
   return findUserById(Number(payload.sub));
 }
 
+// Ensure inventory_slots column exists (auto-migrate)
+let columnEnsured = false;
+async function ensureInventorySlotsColumn() {
+  if (columnEnsured) return;
+  const db = getDb();
+  try {
+    await db.execute(sql`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS inventory_slots INT NOT NULL DEFAULT 100
+    `);
+    columnEnsured = true;
+  } catch {
+    // MySQL < 8.0 doesn't support IF NOT EXISTS — try without
+    try {
+      await db.execute(sql`ALTER TABLE users ADD COLUMN inventory_slots INT NOT NULL DEFAULT 100`);
+    } catch { /* column already exists */ }
+    columnEnsured = true;
+  }
+}
+
+// Get used vs available slots for user
+async function getInventorySlotInfo(userId: number) {
+  await ensureInventorySlotsColumn();
+  const db = getDb();
+  const result = await db.execute(sql`
+    SELECT
+      (SELECT COUNT(*) FROM user_items WHERE user_id = ${userId}) as used,
+      (SELECT inventory_slots FROM users WHERE id = ${userId}) as total
+  `);
+  const row = (result[0] as any[])?.[0];
+  const used = Number(row?.used ?? 0);
+  const total = Number(row?.total ?? 100);
+  return { used, total, free: Math.max(0, total - used) };
+}
+
 async function generateItems(userId: number, grades: Record<string, number>, count: number) {
   const items = [];
   for (let i = 0; i < count; i++) {
@@ -113,6 +148,15 @@ export const gameRouter = createRouter({
         throw new TRPCError({ code: "BAD_REQUEST", message: `Потрібно ${config.cost} монет. У тебе ${user.coins}.` });
       }
 
+      // Check inventory slots
+      const slotInfo = await getInventorySlotInfo(user.id);
+      if (slotInfo.free < config.items) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Недостатньо місця в інвентарі (${slotInfo.used}/${slotInfo.total}). Продай предмети або купи розширення.`,
+        });
+      }
+
       // Deduct FIRST before generating (prevent double-spend)
       await updateUser(user.id, { coins: user.coins - config.cost });
 
@@ -125,6 +169,15 @@ export const gameRouter = createRouter({
   getDailyPack: publicQuery.mutation(async ({ ctx }) => {
     const user = await getUser(ctx.req.headers);
     if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+    // Check inventory slots first
+    const slotInfo = await getInventorySlotInfo(user.id);
+    if (slotInfo.free < 3) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Недостатньо місця в інвентарі (${slotInfo.used}/${slotInfo.total}). Продай предмети або купи розширення.`,
+      });
+    }
 
     const db = getDb();
 
@@ -319,9 +372,10 @@ export const gameRouter = createRouter({
     const items = await getUserItems(user.id);
     const totalValue = items.reduce((s, i) => s + ((i as any).marketPrice ?? 0), 0);
     const legacyCount = items.filter((i: any) => i.template?.grade === "Legacy").length;
+    const slotInfo = await getInventorySlotInfo(user.id);
     return {
       user: { id: user.id, telegramId: user.telegramId, username: user.username, firstName: user.firstName, coins: user.coins, stars: user.stars, streakDays: user.streakDays, avatar: user.avatar },
-      stats: { totalItems: items.length, totalValue, legacyCount },
+      stats: { totalItems: items.length, totalValue, legacyCount, inventorySlots: slotInfo.total, slotsUsed: slotInfo.used },
     };
   }),
 
@@ -378,6 +432,55 @@ export const gameRouter = createRouter({
 
     return Array.from(collections.values());
   }),
+
+  // ── Get inventory slot info ──────────────────────────────────
+  getInventorySlots: publicQuery.query(async ({ ctx }) => {
+    const user = await getUser(ctx.req.headers);
+    if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+    return getInventorySlotInfo(user.id);
+  }),
+
+  // ── Buy more inventory slots ─────────────────────────────────
+  buyInventorySlots: publicQuery
+    .input(z.object({
+      pack: z.enum(["small", "medium", "large"]),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const user = await getUser(ctx.req.headers);
+      if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Pricing tiers — gets more expensive per slot the more you have
+      const PACKS = {
+        small:  { slots: 25,  baseCost: 500   }, // 20 coins/slot
+        medium: { slots: 50,  baseCost: 1500  }, // 30 coins/slot
+        large:  { slots: 100, baseCost: 5000  }, // 50 coins/slot
+      };
+      const pack = PACKS[input.pack];
+
+      await ensureInventorySlotsColumn();
+      const slotInfo = await getInventorySlotInfo(user.id);
+      const currentSlots = slotInfo.total;
+
+      // Cost grows progressively: each 100 slots over 100 → cost ×1.5
+      const tier = Math.floor((currentSlots - 100) / 100);
+      const multiplier = Math.pow(1.5, Math.max(0, tier));
+      const cost = Math.floor(pack.baseCost * multiplier);
+
+      // Hard cap at 500 slots
+      if (currentSlots + pack.slots > 500) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Максимум 500 слотів. Спочатку продай старі предмети." });
+      }
+
+      if (user.coins < cost) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Потрібно ${cost.toLocaleString()} монет` });
+      }
+
+      const db = getDb();
+      await updateUser(user.id, { coins: user.coins - cost });
+      await db.execute(sql`UPDATE users SET inventory_slots = inventory_slots + ${pack.slots} WHERE id = ${user.id}`);
+
+      return { newSlots: currentSlots + pack.slots, cost, addedSlots: pack.slots };
+    }),
 });
 // export PACK_CONFIGS already done above
 
