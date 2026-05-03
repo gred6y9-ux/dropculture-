@@ -55,6 +55,22 @@ export default function Inventory() {
   const { data: items, isLoading, refetch } = trpc.game.getInventory.useQuery({}, {
     enabled: isAuthenticated, retry: false,
   });
+  const { data: slotInfo, refetch: refetchSlots } = trpc.game.getInventorySlots.useQuery(undefined, {
+    enabled: isAuthenticated,
+  });
+  const { data: profile, refetch: refetchProfile } = trpc.game.getProfile.useQuery(undefined, {
+    enabled: isAuthenticated,
+  });
+  const [showSlotsModal, setShowSlotsModal] = useState(false);
+
+  const buySlots = trpc.game.buyInventorySlots.useMutation({
+    onSuccess: (data) => {
+      refetchSlots(); refetchProfile();
+      setShowSlotsModal(false);
+      toast.success(`✅ +${data.addedSlots} слотів!`, `Тепер у тебе ${data.newSlots} слотів`);
+    },
+    onError: (err) => toast.error("Помилка", err.message),
+  });
 
   const burnItems = trpc.game.burnItems.useMutation({
     onSuccess: (data: any) => {
@@ -146,7 +162,7 @@ export default function Inventory() {
         <div className="flex-1">
           <h1 className="font-bold text-base">{selectMode ? `Вибрано ${selectedIds.size}` : "Інвентар"}</h1>
           <p className="text-xs text-slate-500">
-            {selectMode ? "Утримай для виходу або тапай для вибору" : `${items?.length ?? 0} предметів`}
+            {selectMode ? "Утримай для виходу або тапай для вибору" : `${slotInfo?.used ?? 0} / ${slotInfo?.total ?? 100} слотів`}
           </p>
         </div>
         {!selectMode && (
@@ -155,6 +171,40 @@ export default function Inventory() {
           </div>
         )}
       </div>
+
+      {/* Slot meter */}
+      {!selectMode && slotInfo && (
+        <div className="px-4 mb-3">
+          {(() => {
+            const pct = (slotInfo.used / slotInfo.total) * 100;
+            const isWarning = pct >= 80;
+            const isFull = pct >= 100;
+            return (
+              <div className={`bg-[#12121a] border rounded-xl p-2.5 ${isFull ? "border-red-500/40" : isWarning ? "border-amber-500/40" : "border-[#1e1e2e]"}`}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                    {isFull ? "🚫" : isWarning ? "⚠️" : "📦"} Слоти інвентаря
+                    <span className={`text-[10px] ${isFull ? "text-red-400" : isWarning ? "text-amber-400" : "text-slate-500"}`}>
+                      {slotInfo.used}/{slotInfo.total}
+                    </span>
+                  </p>
+                  <Button onClick={() => setShowSlotsModal(true)} size="sm"
+                    className="h-6 text-[10px] bg-purple-600 hover:bg-purple-700 rounded-lg px-2.5">
+                    + Розширити
+                  </Button>
+                </div>
+                <div className="h-1.5 bg-[#1e1e2e] rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${
+                    isFull ? "bg-red-500" : isWarning ? "bg-amber-500" : "bg-gradient-to-r from-purple-500 to-pink-500"
+                  }`} style={{ width: `${Math.min(100, pct)}%` }} />
+                </div>
+                {isFull && <p className="text-[10px] text-red-400 mt-1.5">Інвентар повний — нові паки не відкриваються!</p>}
+                {isWarning && !isFull && <p className="text-[10px] text-amber-400 mt-1.5">Скоро закінчиться місце</p>}
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
       {/* Search */}
       {!selectMode && (
@@ -338,6 +388,65 @@ export default function Inventory() {
                 <Flame className="w-4 h-4 mr-1" /> {burnItems.isPending ? "..." : "Burn 5 → 1"}
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Slots purchase modal */}
+      {showSlotsModal && slotInfo && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="bg-[#12121a] border border-[#1e1e2e] rounded-3xl p-5 w-full max-w-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-white text-base">📦 Розширення інвентаря</h3>
+              <button onClick={() => setShowSlotsModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-xs text-slate-400 mb-4">
+              Зараз {slotInfo.used}/{slotInfo.total} слотів. Максимум 500.
+            </p>
+            <div className="space-y-2">
+              {(() => {
+                const tier = Math.floor((slotInfo.total - 100) / 100);
+                const mult = Math.pow(1.5, Math.max(0, tier));
+                const PACKS = [
+                  { id: "small",  emoji: "📦", slots: 25,  baseCost: 500   },
+                  { id: "medium", emoji: "🎒", slots: 50,  baseCost: 1500  },
+                  { id: "large",  emoji: "🏪", slots: 100, baseCost: 5000  },
+                ];
+                return PACKS.map(p => {
+                  const cost = Math.floor(p.baseCost * mult);
+                  const tooMuch = slotInfo.total + p.slots > 500;
+                  const userCoins = profile?.user?.coins ?? 0;
+                  const cantAfford = userCoins < cost;
+                  return (
+                    <button key={p.id}
+                      onClick={() => { if (!tooMuch && !cantAfford) buySlots.mutate({ pack: p.id as any }); }}
+                      disabled={tooMuch || cantAfford || buySlots.isPending}
+                      className={`w-full bg-[#0d0d14] border rounded-2xl p-3 flex items-center gap-3 transition-all
+                        ${tooMuch || cantAfford ? "border-[#1e1e2e] opacity-50 cursor-not-allowed" : "border-purple-500/20 hover:border-purple-500/50 active:scale-95"}
+                      `}>
+                      <span className="text-2xl flex-shrink-0">{p.emoji}</span>
+                      <div className="flex-1 text-left">
+                        <p className="font-bold text-white text-sm">+{p.slots} слотів</p>
+                        <p className="text-[10px] text-slate-500">
+                          {tooMuch ? "Перевищить ліміт 500" : `${(cost / p.slots).toFixed(0)}₵ за слот`}
+                        </p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <div className="flex items-center gap-1 text-yellow-400 font-bold text-sm">
+                          <Zap className="w-3 h-3" />{cost.toLocaleString()}
+                        </div>
+                        {cantAfford && !tooMuch && <p className="text-[9px] text-red-400">Мало монет</p>}
+                      </div>
+                    </button>
+                  );
+                });
+              })()}
+            </div>
+            <p className="text-[10px] text-slate-600 mt-3 text-center">
+              💡 Чим більше слотів — тим дорожче нові
+            </p>
           </div>
         </div>
       )}
