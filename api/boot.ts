@@ -133,6 +133,29 @@ if (env.isProduction) {
   // Run migrations BEFORE accepting requests
   await runMigrations();
 
+  // Auto-configure webhook on startup
+  if (env.botToken) {
+    try {
+      const webhookUrl = `https://dropculture-production.up.railway.app/api/webhook/telegram`;
+      const res = await fetch(`https://api.telegram.org/bot${env.botToken}/setWebhook`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: webhookUrl,
+          allowed_updates: ["pre_checkout_query", "message"],
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        console.log(`[webhook] ✅ Set to: ${webhookUrl}`);
+      } else {
+        console.error(`[webhook] ❌ Failed:`, data);
+      }
+    } catch (err) {
+      console.error(`[webhook] error:`, err);
+    }
+  }
+
   const port = parseInt(process.env.PORT || "3000");
   serve({ fetch: app.fetch, port }, () => {
     console.log(`Server running on http://localhost:${port}/`);
